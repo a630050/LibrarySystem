@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title> 圖書借閱管理系統 </title>
+  <title>圖書借閱管理系統</title>
   <style>
     :root {
       --bg: #f4f6fb;
@@ -548,12 +548,12 @@
           <div class="small">舊系統學生借閱紀錄（欄位：進出日期,學號,登錄號,書名,排架號,狀態）</div>
           <input id="legacyStudentLoanInput" type="file" accept=".csv" />
           <div class="btn-row">
-            <button id="importLegacyStudentLoanBtn">舊系統學生借閱紀錄匯入</button>
+            <button id="importLegacyStudentLoanBtn">舊系統學生借閱紀錄匯入（覆蓋學生）</button>
           </div>
           <div class="small" style="margin-top: 10px;">舊系統教職員借閱紀錄（欄位：處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間）</div>
           <input id="legacyStaffLoanInput" type="file" accept=".csv" />
           <div class="btn-row">
-            <button id="importLegacyStaffLoanBtn">舊系統教職員借閱紀錄匯入</button>
+            <button id="importLegacyStaffLoanBtn">舊系統教職員借閱紀錄匯入（覆蓋教職員）</button>
           </div>
         </div>
       </section>
@@ -827,7 +827,7 @@
             try { persisted = await navigator.storage.persist(); } catch (_) {}
           }
           if (!persisted) {
-            risks.push("瀏覽器未啟用持久儲存；若有自動清除網站資料機制，借閱資料可能被清除。");
+            risks.push("若有自動清除網站資料機制，借閱資料可能被清除。請養成習慣每日作業結束按【匯出借閱紀錄】保存最新紀錄。");
           }
         } else {
           risks.push("此瀏覽器無法回報持久儲存狀態，無法確認是否會自動清除網站資料。");
@@ -1405,38 +1405,23 @@
       const rows = parseCSV(text);
       if (!rows.length) throw new Error("舊系統學生借閱紀錄檔案沒有資料。");
       assertExactHeader(rows[0], ["進出日期", "學號", "登錄號", "書名", "排架號", "狀態"], "舊系統學生借閱紀錄 CSV");
+      if (!window.confirm("即將覆蓋目前全部「學生」借閱紀錄（教職員紀錄保留），是否繼續？")) {
+        message("已取消舊系統學生借閱紀錄匯入。", true);
+        return;
+      }
 
       const students = await storeGetAll(STORE.students);
       const books = await storeGetAll(STORE.books);
-      const existingLoans = await storeGetAll(STORE.loans);
-
       const studentMap = new Map(students.map(s => [s.id, s]));
       const bookMap = new Map(books.map(b => [b.bookId, b]));
-      const existingOpenByKey = new Map();
-      const updatesById = new Map();
-      const pendingNewOpenByKey = new Map();
-      const newRows = [];
-
-      for (const row of existingLoans) {
-        if (row.personType !== "Student" || row.returnAtISO) continue;
-        const key = `${row.uniqueId}|${row.bookId}`;
-        if (!existingOpenByKey.has(key)) existingOpenByKey.set(key, []);
-        existingOpenByKey.get(key).push(row);
-      }
-      for (const rowsByKey of existingOpenByKey.values()) {
-        rowsByKey.sort((a, b) => {
-          if (a.borrowAtISO === b.borrowAtISO) return (a.recordId || 0) - (b.recordId || 0);
-          return a.borrowAtISO > b.borrowAtISO ? 1 : -1;
-        });
-      }
+      const events = [];
 
       let skippedNoStudent = 0;
       let skippedNoDate = 0;
       let skippedNoBook = 0;
       let skippedNoMatchReturn = 0;
       let skippedBadStatus = 0;
-      let returnAppliedToNew = 0;
-      let returnAppliedToExisting = 0;
+      let returnApplied = 0;
 
       for (let i = 1; i < rows.length; i++) {
         const r = rows[i];
@@ -1449,7 +1434,22 @@
         if (!opDate) { skippedNoDate++; continue; }
         if (!bookId) { skippedNoBook++; continue; }
         if (!/^\d{6}$/.test(sid) || !studentMap.has(sid)) { skippedNoStudent++; continue; }
+        if (!(status === "借出" || status === "借入" || status === "歸還")) { skippedBadStatus++; continue; }
 
+        events.push({ idx: i, opDate, sid, bookId, titleRaw, status });
+      }
+
+      events.sort((a, b) => {
+        const diff = a.opDate.getTime() - b.opDate.getTime();
+        if (diff !== 0) return diff;
+        return a.idx - b.idx;
+      });
+
+      const openByKey = new Map();
+      const newRows = [];
+
+      for (const e of events) {
+        const { opDate, sid, bookId, titleRaw, status } = e;
         const student = studentMap.get(sid);
         const book = bookMap.get(bookId);
         const key = `${sid}|${bookId}`;
@@ -1473,53 +1473,35 @@
             returnDateROC: ""
           };
           newRows.push(loan);
-          if (!pendingNewOpenByKey.has(key)) pendingNewOpenByKey.set(key, []);
-          pendingNewOpenByKey.get(key).push(loan);
+          if (!openByKey.has(key)) openByKey.set(key, []);
+          openByKey.get(key).push(loan);
           continue;
         }
 
         if (status === "歸還") {
-          const newOpenList = pendingNewOpenByKey.get(key) || [];
-          if (newOpenList.length) {
-            const target = newOpenList[newOpenList.length - 1];
+          const openList = openByKey.get(key) || [];
+          if (openList.length) {
+            const target = openList[openList.length - 1];
             target.returnAtISO = toISODateOnly(opDate);
             target.returnDateROC = toRocDate(opDate);
-            newOpenList.pop();
-            returnAppliedToNew++;
-            continue;
-          }
-
-          const oldOpenList = existingOpenByKey.get(key) || [];
-          if (!oldOpenList.length) {
+            openList.pop();
+            returnApplied++;
+          } else {
             skippedNoMatchReturn++;
-            continue;
           }
-
-          const oldTarget = oldOpenList.pop();
-          updatesById.set(oldTarget.recordId, {
-            ...oldTarget,
-            returnAtISO: toISODateOnly(opDate),
-            returnDateROC: toRocDate(opDate)
-          });
-          returnAppliedToExisting++;
           continue;
         }
-
-        skippedBadStatus++;
       }
 
-      for (const row of updatesById.values()) {
-        await storePut(STORE.loans, row);
-      }
-      for (const row of newRows) {
-        await storePut(STORE.loans, row);
-      }
+      const allLoans = await storeGetAll(STORE.loans);
+      const preserved = allLoans.filter(r => r.personType !== "Student");
+      await storeBulkReplace(STORE.loans, [...preserved, ...newRows]);
 
       await refreshHistoryTable(true);
       await queryUserByCurrentInput();
       await queryBookByCurrentInput();
 
-      const msg = `舊系統學生借閱紀錄匯入完成。新增 ${newRows.length} 筆，補上歸還（新匯入）${returnAppliedToNew} 筆，補上歸還（既有紀錄）${returnAppliedToExisting} 筆；略過：無對應學生 ${skippedNoStudent}、日期錯誤 ${skippedNoDate}、無登錄號 ${skippedNoBook}、找不到可配對歸還 ${skippedNoMatchReturn}、狀態異常 ${skippedBadStatus}。`;
+      const msg = `舊系統學生借閱紀錄匯入完成（覆蓋學生紀錄）。共寫入 ${newRows.length} 筆，配對歸還 ${returnApplied} 筆；略過：無對應學生 ${skippedNoStudent}、日期錯誤 ${skippedNoDate}、無登錄號 ${skippedNoBook}、找不到可配對歸還 ${skippedNoMatchReturn}、狀態異常 ${skippedBadStatus}。`;
       message(msg);
       alert(msg);
     }
@@ -1529,6 +1511,10 @@
       const rows = parseCSV(text);
       if (!rows.length) throw new Error("舊系統教職員借閱紀錄檔案沒有資料。");
       assertExactHeader(rows[0], ["處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間"], "舊系統教職員借閱紀錄 CSV");
+      if (!window.confirm("即將覆蓋目前全部「教職員」借閱紀錄（學生紀錄保留），是否繼續？")) {
+        message("已取消舊系統教職員借閱紀錄匯入。", true);
+        return;
+      }
 
       const staffs = await storeGetAll(STORE.staff);
       const books = await storeGetAll(STORE.books);
@@ -1597,15 +1583,15 @@
         });
       }
 
-      for (const row of newRows) {
-        await storePut(STORE.loans, row);
-      }
+      const allLoans = await storeGetAll(STORE.loans);
+      const preserved = allLoans.filter(r => r.personType !== "Staff");
+      await storeBulkReplace(STORE.loans, [...preserved, ...newRows]);
 
       await refreshHistoryTable(true);
       await queryUserByCurrentInput();
       await queryBookByCurrentInput();
 
-      const msg = `舊系統教職員借閱紀錄匯入完成。新增 ${newRows.length} 筆；略過：找不到可對應教職員 ${skippedNoStaff}、借出/應還日期錯誤 ${skippedNoBorrowDate}、無登錄號 ${skippedNoBook}。`;
+      const msg = `舊系統教職員借閱紀錄匯入完成（覆蓋教職員紀錄）。共寫入 ${newRows.length} 筆；略過：找不到可對應教職員 ${skippedNoStaff}、借出/應還日期錯誤 ${skippedNoBorrowDate}、無登錄號 ${skippedNoBook}。`;
       message(msg);
       alert(msg);
     }
@@ -2009,12 +1995,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
