@@ -488,7 +488,8 @@
       <div class="panel-body small">
         <p><b>學生名冊 CSV</b>：<span class="mono">年班,座號,姓名,學號</span></p>
         <p><b>教職員名冊 CSV</b>：<span class="mono">身分證末四碼,姓名,處室,職務</span></p>
-        <p><b>書籍清冊 CSV</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span></p>
+        <p><b>書籍清冊（CSV/XLS/XLSX）</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span>（可自動略過前置資訊列，抓取標題列）</p>
+        <p>請將全誼系統匯出之書庫資料以模板格式匯出，方能正確匯入。</p>
         <p><b>借閱紀錄 CSV</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別</span></p>
         <p>借閱規則：學生 5 本上限、教職員 10 本上限、借期 30 天，所有身分當日借不可當日還。</p>
         <div class="btn-row">
@@ -524,7 +525,7 @@
         <h2>書籍清冊</h2>
         <div class="panel-body">
           <div id="bookStoreStatus" class="small">資料狀態：檢查中...</div>
-          <input id="bookImportInput" type="file" accept=".csv" />
+          <input id="bookImportInput" type="file" accept=".csv,.xls,.xlsx" />
           <div class="btn-row"><button id="importBookBtn">匯入書籍清冊（覆蓋）</button><button id="exportBookBtn" class="secondary">匯出書籍清冊</button></div>
         </div>
       </section>
@@ -555,6 +556,16 @@
           <div class="btn-row">
             <button id="importLegacyStaffLoanBtn">舊系統教職員借閱紀錄匯入（覆蓋教職員）</button>
           </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>系統維護</h2>
+        <div class="panel-body">
+          <div class="btn-row">
+            <button id="resetSystemBtn" class="danger">重置系統（清空全部資料）</button>
+          </div>
+          <p class="small">此操作會清空學生名冊、教職員名冊、書籍清冊與借閱紀錄，且無法復原。</p>
         </div>
       </section>
     </div>
@@ -606,6 +617,7 @@
     <div id="message">系統啟動中...</div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
     const DB_NAME = "library_loan_system";
     const DB_VERSION = 1;
@@ -662,6 +674,7 @@
       legacyStaffLoanInput: document.getElementById("legacyStaffLoanInput"),
       importLegacyStudentLoanBtn: document.getElementById("importLegacyStudentLoanBtn"),
       importLegacyStaffLoanBtn: document.getElementById("importLegacyStaffLoanBtn"),
+      resetSystemBtn: document.getElementById("resetSystemBtn"),
       tplStudentBtn: document.getElementById("tplStudentBtn"), tplStaffBtn: document.getElementById("tplStaffBtn"), tplBookBtn: document.getElementById("tplBookBtn"), tplLoanBtn: document.getElementById("tplLoanBtn"),
       topModeNav: document.getElementById("topModeNav"),
       adminLink: document.getElementById("adminLink"),
@@ -901,6 +914,14 @@
       const store = t.objectStore(storeName);
       await reqToPromise(store.clear());
       for (const row of rows) await reqToPromise(store.put(row));
+      await new Promise((resolve, reject) => { t.oncomplete = () => resolve(); t.onerror = () => reject(t.error); });
+    }
+    async function clearAllStores() {
+      const names = [STORE.students, STORE.staff, STORE.books, STORE.loans];
+      const t = tx(names, "readwrite");
+      for (const n of names) {
+        await reqToPromise(t.objectStore(n).clear());
+      }
       await new Promise((resolve, reject) => { t.oncomplete = () => resolve(); t.onerror = () => reject(t.error); });
     }
     async function getPersonById(uniqueId) {
@@ -1370,6 +1391,60 @@
       }
     }
 
+    function normalizeHeaderKey(v) {
+      return String(v || "")
+        .replace(/^\uFEFF/, "")
+        .replace(/\u200B/g, "")
+        .replace(/\s+/g, "")
+        .trim();
+    }
+
+    function buildHeaderIndexMap(headerRow) {
+      const map = new Map();
+      (headerRow || []).forEach((cell, idx) => {
+        const key = normalizeHeaderKey(cell);
+        if (key && !map.has(key)) map.set(key, idx);
+      });
+      return map;
+    }
+
+    function findHeaderRowIndexByExpected(rows, expectedHeader, scanLimit = 30) {
+      const expected = expectedHeader.map(normalizeHeaderKey);
+      const limit = Math.min(rows.length, scanLimit);
+      for (let i = 0; i < limit; i++) {
+        const map = buildHeaderIndexMap(rows[i]);
+        if (expected.every(h => map.has(h))) return i;
+      }
+      return -1;
+    }
+
+    async function parseBookRowsFromFile(fileInput) {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) throw new Error("請先選擇書籍清冊檔案。");
+      const name = String(file.name || "").toLowerCase();
+
+      if (name.endsWith(".xls") || name.endsWith(".xlsx")) {
+        if (typeof XLSX === "undefined") {
+          throw new Error("目前無法解析 Excel（XLS/XLSX）檔案，請稍後重試或改用 CSV。");
+        }
+        let workbook;
+        try {
+          const bytes = await file.arrayBuffer();
+          workbook = XLSX.read(bytes, { type: "array", raw: false, cellDates: false });
+        } catch (_) {
+          throw new Error("Excel 檔案解析失敗，請確認檔案未損壞。");
+        }
+        const firstSheetName = workbook.SheetNames && workbook.SheetNames[0];
+        if (!firstSheetName) return [];
+        const sheet = workbook.Sheets[firstSheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false, blankrows: false });
+        return rows.map(r => (r || []).map(c => String(c ?? "").trim()));
+      }
+
+      const text = await readFileText(fileInput);
+      return parseCSV(text);
+    }
+
     async function readFileText(fileInput) {
       const file = fileInput.files && fileInput.files[0];
       if (!file) throw new Error("請先選擇 CSV 檔案。");
@@ -1643,36 +1718,54 @@
     }
 
     async function importBooks() {
-      const text = await readFileText(el.bookImportInput);
-      const rows = parseCSV(text);
+      const rows = await parseBookRowsFromFile(el.bookImportInput);
       if (!rows.length) throw new Error("書籍清冊檔案沒有資料。");
 
       const expectedHeader = ["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"];
-      assertExactHeader(rows[0], expectedHeader, "書籍清冊 CSV");
+      const headerRowIndex = findHeaderRowIndexByExpected(rows, expectedHeader, 30);
+      if (headerRowIndex < 0) {
+        throw new Error("書籍清冊格式不符合。請確認檔案包含標題欄：登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號。");
+      }
+      const headerMap = buildHeaderIndexMap(rows[headerRowIndex]);
+      const col = {
+        bookId: headerMap.get(normalizeHeaderKey("登錄號")),
+        title: headerMap.get(normalizeHeaderKey("書名")),
+        author: headerMap.get(normalizeHeaderKey("著者名")),
+        isbn: headerMap.get(normalizeHeaderKey("ISBN")),
+        binding: headerMap.get(normalizeHeaderKey("裝訂別")),
+        specialNo: headerMap.get(normalizeHeaderKey("特藏號")),
+        callNo: headerMap.get(normalizeHeaderKey("索書號")),
+        location: headerMap.get(normalizeHeaderKey("館藏地")),
+        categoryNo: headerMap.get(normalizeHeaderKey("分類號")),
+        shelfNo: headerMap.get(normalizeHeaderKey("排架號"))
+      };
 
-      const result = [];
-      for (let i = 1; i < rows.length; i++) {
+      const resultMap = new Map();
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const r = rows[i];
-        const bookId = normalizeDigits(r[0]);
+        if (!r || !r.some(cell => String(cell || "").trim() !== "")) continue;
+        const bookId = normalizeDigits(r[col.bookId]);
         if (!bookId) continue;
-        result.push({
+        resultMap.set(bookId, {
           bookId,
-          title: r[1] || "",
-          author: r[2] || "",
-          isbn: r[3] || "",
-          binding: r[4] || "",
-          specialNo: r[5] || "",
-          callNo: r[6] || "",
-          location: r[7] || "",
-          categoryNo: r[8] || "",
-          shelfNo: r[9] || ""
+          title: r[col.title] || "",
+          author: r[col.author] || "",
+          isbn: r[col.isbn] || "",
+          binding: r[col.binding] || "",
+          specialNo: r[col.specialNo] || "",
+          callNo: r[col.callNo] || "",
+          location: r[col.location] || "",
+          categoryNo: r[col.categoryNo] || "",
+          shelfNo: r[col.shelfNo] || ""
         });
       }
+      const result = Array.from(resultMap.values());
 
       await storeBulkReplace(STORE.books, result);
       await refreshMasterStoreStatus();
-      message(`書籍清冊匯入完成，共 ${result.length} 筆。`);
-      alert(`書籍清冊匯入成功，共 ${result.length} 筆。`);
+      const headerLine = headerRowIndex + 1;
+      message(`書籍清冊匯入完成，共 ${result.length} 筆（偵測標題列：第 ${headerLine} 列）。`);
+      alert(`書籍清冊匯入成功，共 ${result.length} 筆（偵測標題列：第 ${headerLine} 列）。`);
       await queryBookByCurrentInput();
     }
 
@@ -1726,6 +1819,40 @@
       await queryBookByCurrentInput();
       message(`借閱紀錄匯入完成（覆蓋），共 ${result.length} 筆。`);
       alert(`借閱紀錄匯入成功（覆蓋），共 ${result.length} 筆。`);
+    }
+
+    async function resetSystemData() {
+      const ok1 = window.confirm("重置系統會清空所有已匯入資料（學生/教職員/書籍/借閱紀錄）。是否繼續？");
+      if (!ok1) {
+        message("已取消重置系統。", true);
+        return;
+      }
+      const ok2 = window.confirm("請再次確認：清空後無法復原。是否確定執行重置？");
+      if (!ok2) {
+        message("已取消重置系統。", true);
+        return;
+      }
+
+      deactivateWorkflow("", true);
+      await clearAllStores();
+
+      el.userIdInput.value = "";
+      el.bookIdInput.value = "";
+      clearPersonView();
+      el.bookTitleField.textContent = "-";
+      el.bookStatusField.textContent = "-";
+
+      if (el.catalogSearchBody) {
+        el.catalogSearchBody.innerHTML = "<tr><td colspan='8'>請輸入登錄號或書名關鍵字查詢。</td></tr>";
+      }
+
+      await refreshMasterStoreStatus();
+      await refreshHistoryTable(true);
+      await queryUserByCurrentInput();
+      await queryBookByCurrentInput();
+
+      message("系統重置完成，所有已匯入資料已清空。");
+      alert("系統重置完成，所有已匯入資料已清空。");
     }
 
     async function exportStudents() {
@@ -1831,6 +1958,7 @@
 
       el.tplBookBtn.addEventListener("click", () => {
         downloadCSV("書籍清冊模板.csv", [["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"], ["00000023", "HOW BIG IS BIG多大才是大(附CD)", "Harriet Ziefert", "9570339039", "01", "", "805.188/H297/c.2", "圖書館", "805.188", "BE06"]]);
+        message("請將全誼系統匯出之書庫資料以模板格式匯出，方能正確匯入。");
       });
 
       el.tplLoanBtn.addEventListener("click", () => {
@@ -1936,6 +2064,7 @@
       el.exportGradeBtn.addEventListener("click", async () => { try { await exportGradeReports(); } catch (e) { message(e.message || String(e), true); } });
       el.importLegacyStudentLoanBtn.addEventListener("click", async () => { try { await importLegacyStudentLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
       el.importLegacyStaffLoanBtn.addEventListener("click", async () => { try { await importLegacyStaffLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.resetSystemBtn.addEventListener("click", async () => { try { await resetSystemData(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
       el.historyBorrowHeader.addEventListener("click", () => toggleHistorySort("borrowAtISO"));
       el.historyReturnHeader.addEventListener("click", () => toggleHistorySort("returnAtISO"));
       el.historyPrevBtn.addEventListener("click", () => { historyPage = Math.max(1, historyPage - 1); renderHistoryPage(); });
@@ -1995,3 +2124,11 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
