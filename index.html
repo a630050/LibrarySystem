@@ -1,0 +1,2019 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>圖書借閱管理系統</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --primary: #2e5eaa;
+      --primary-2: #3c74c8;
+      --danger: #c93a3a;
+      --success: #3d8b3d;
+      --warn: #c6891f;
+      --line: #d6dbe7;
+      --text: #1d2533;
+      --muted: #5f6c84;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #ebf2ff 0%, var(--bg) 220px);
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 12px 32px;
+    }
+
+    .title {
+      margin: 0 0 12px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-2));
+      color: #fff;
+      text-align: center;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 26px;
+      letter-spacing: 2px;
+      font-weight: 700;
+    }
+
+
+    .mode-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .nav-btn {
+      display: inline-block;
+      text-decoration: none;
+      background: #355e9f;
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 14px;
+    }
+
+    .mode-badge {
+      color: #2c4670;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 3px 12px rgba(42, 78, 140, 0.08);
+    }
+
+    .panel h2 {
+      margin: 0;
+      padding: 9px 12px;
+      background: #e7eefc;
+      border-bottom: 1px solid var(--line);
+      font-size: 17px;
+    }
+
+    .panel-body {
+      padding: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .row label {
+      font-weight: 700;
+      color: #2b3c56;
+    }
+
+    input[type="text"],
+    input[type="file"],
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #bcc7dc;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 15px;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 15px;
+      cursor: pointer;
+      color: #fff;
+      background: var(--primary);
+    }
+
+    button.secondary { background: #556b8a; }
+    button.success { background: var(--success); }
+    button.danger { background: var(--danger); }
+    button.warn { background: var(--warn); }
+    button.active-mode {
+      box-shadow: 0 0 0 3px rgba(45, 98, 176, 0.25);
+      transform: translateY(1px);
+    }
+
+    .status-box {
+      background: #f8fafe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+      min-height: 72px;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .status-item {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .status-item b {
+      display: block;
+      color: #2a456f;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .section-title {
+      font-size: 19px;
+      margin: 16px 0 8px;
+      color: #1f3455;
+      font-weight: 700;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      max-height: 320px;
+      background: #fff;
+    }
+    .no-horizontal-scroll { overflow-x: hidden; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #e3e8f2;
+      border-right: 1px solid #edf1f7;
+      padding: 6px 8px;
+      font-size: 14px;
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    th {
+      background: #2f5faa;
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr:nth-child(even) td { background: #fbfdff; }
+    table.compact-table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+    table.compact-table th,
+    table.compact-table td {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.35;
+      vertical-align: top;
+    }
+    .admin-history-table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+    .admin-history-table th,
+    .admin-history-table td {
+      font-size: 12px;
+      padding: 4px 6px;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .admin-history-table td.book-title-cell {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sortable-header {
+      cursor: pointer;
+      user-select: none;
+    }
+    .sortable-header:hover {
+      background: #295495;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(300px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .small { font-size: 12px; color: #506079; }
+    .mono { font-family: Consolas, "Courier New", monospace; }
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .pager-btn {
+      padding: 5px 10px;
+      font-size: 13px;
+      border-radius: 6px;
+    }
+    .front-tabs,
+    .admin-tabs {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .admin-tab-btn.active-tab,
+    .front-tab-btn.active-tab {
+      box-shadow: 0 0 0 3px rgba(45, 98, 176, 0.25);
+      background: #2f5faa;
+    }
+    .catalog-search-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .catalog-table {
+      min-width: 0;
+      width: 100%;
+      table-layout: fixed;
+    }
+    .catalog-table th,
+    .catalog-table td {
+      font-size: 12px;
+      white-space: normal;
+      word-break: break-word;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    .catalog-table td:nth-child(1) {
+      color: #1d4fa5;
+      font-family: Consolas, "Courier New", monospace;
+      font-weight: 800;
+    }
+    .catalog-table td:nth-child(2) {
+      font-weight: 800;
+      color: #101725;
+      font-size: 14px;
+    }
+    .catalog-table td:nth-child(8) {
+      font-weight: 900;
+      background: #fff4bf;
+      color: #a32b2b;
+      font-size: 16px;
+      text-align: center;
+      border-left: 4px solid #f2ca45;
+    }
+    .footer-note {
+      margin-top: 16px;
+      padding-top: 8px;
+      border-top: 1px solid #dfe6f2;
+      text-align: center;
+      color: #687690;
+      font-size: 12px;
+    }
+    .storage-warning {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #f0c57b;
+      background: #fff4df;
+      color: #7a4a00;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .bottom-nav {
+      margin-top: 20px;
+      margin-bottom: 0;
+    }
+    @media (max-width: 940px) {
+      .catalog-search-grid { grid-template-columns: 1fr; }
+      .catalog-table td:nth-child(8) { font-size: 14px; }
+    }
+    .history-action {
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .history-action.warn { background: var(--warn); }
+    .history-action.danger { background: var(--danger); }
+
+    #message {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #edf4ff;
+      border: 1px solid #c5d7f3;
+      color: #244475;
+    }
+
+    @media (max-width: 940px) {
+      .grid, .toolbar { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; gap: 4px; }
+      table { min-width: 620px; }
+      .admin-history-table { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1 class="title">圖書借閱管理系統</h1>
+
+    <div id="topModeNav" class="mode-nav">
+      <a id="adminLink" class="nav-btn" href="./admin.html">前往後台管理</a>
+      <a id="frontLink" class="nav-btn" href="./index.html">返回前台首頁</a>
+      <span id="modeBadge" class="mode-badge"></span>
+    </div>
+    <div id="storageWarning" class="storage-warning" style="display:none;"></div>
+
+    <div class="front-tabs front-only" data-front-display="flex">
+      <button id="frontTabBorrowBtn" class="secondary front-tab-btn active-tab" data-tab="borrow">借閱管理</button>
+      <button id="frontTabSearchBtn" class="secondary front-tab-btn" data-tab="search">查書</button>
+    </div>
+
+    <div class="grid front-tab-panel" id="topGrid" data-front-tab="borrow" data-front-display="grid">
+      <section class="panel front-only">
+        <h2>首頁操作</h2>
+        <div class="panel-body">
+          <div class="row"><label>日期（民國）</label><div id="todayRoc" class="mono"></div></div>
+          <div class="row"><label for="userIdInput">唯一識別碼</label><input id="userIdInput" type="text" placeholder="學生 6 碼 / 教職員 4 碼" /></div>
+          <div class="row"><label for="bookIdInput">書籍登錄號</label><input id="bookIdInput" type="text" placeholder="可掃碼或輸入" /></div>
+          <div class="btn-row">
+            <button id="queryUserBtn" class="secondary">查詢此人</button>
+            <button id="queryBookBtn" class="secondary">查詢此書</button>
+            <button id="borrowBtn" class="success">借入</button>
+            <button id="returnBtn" class="danger">歸還</button>
+            <button id="quickExportLoanBtn" class="secondary">匯出借閱紀錄</button>
+          </div>
+          <div class="status-box">
+            <div class="status-grid">
+              <div class="status-item"><b>姓名</b><span id="nameField">-</span></div>
+              <div class="status-item"><b>身分</b><span id="typeField">-</span></div>
+              <div class="status-item"><b>書名</b><span id="bookTitleField">-</span></div>
+              <div class="status-item"><b>目前未歸還</b><span id="borrowCountField">0</span></div>
+              <div class="status-item" style="grid-column: span 2;"><b>書籍狀態</b><span id="bookStatusField">-</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel front-only" data-front-display="block">
+        <h2>該人目前借閱中書籍清單</h2>
+        <div class="panel-body">
+          <div class="table-wrap no-horizontal-scroll" style="max-height: 430px;">
+            <table class="compact-table">
+              <thead><tr><th>登錄號</th><th>書名</th><th>借出日期</th><th>應還日期</th></tr></thead>
+              <tbody id="activeBorrowBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <section class="panel front-only front-tab-panel" data-front-tab="search" data-front-display="block">
+      <h2>查書</h2>
+      <div class="panel-body">
+        <div class="catalog-search-grid">
+          <div>
+            <label for="catalogIdSearchInput"><b>登錄號查詢</b></label>
+            <div class="btn-row" style="margin-top:6px;">
+              <input id="catalogIdSearchInput" type="text" placeholder="輸入登錄號" />
+              <button id="catalogSearchByIdBtn" class="secondary">查詢登錄號</button>
+            </div>
+          </div>
+          <div>
+            <label for="catalogKeywordSearchInput"><b>書名關鍵字查詢</b></label>
+            <div class="btn-row" style="margin-top:6px;">
+              <input id="catalogKeywordSearchInput" type="text" placeholder="輸入書名關鍵字" />
+              <button id="catalogSearchByKeywordBtn" class="secondary">查詢關鍵字</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap no-horizontal-scroll" style="max-height: 500px;">
+          <table class="catalog-table compact-table">
+            <colgroup>
+              <col style="width: 11%;">
+              <col style="width: 21%;">
+              <col style="width: 13%;">
+              <col style="width: 13%;">
+              <col style="width: 13%;">
+              <col style="width: 9%;">
+              <col style="width: 10%;">
+              <col style="width: 10%;">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>登錄號</th><th>書名</th><th>著者名</th><th>ISBN</th><th>索書號</th><th>館藏地</th><th>分類號</th><th>排架號</th>
+              </tr>
+            </thead>
+            <tbody id="catalogSearchBody">
+              <tr><td colspan="8">請輸入登錄號或書名關鍵字查詢。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div class="admin-tabs admin-only" data-admin-display="flex">
+      <button id="adminTabManageBtn" class="secondary admin-tab-btn" data-tab="manage">資料管理（匯入/匯出）</button>
+      <button id="adminTabHistoryBtn" class="secondary admin-tab-btn" data-tab="history">借閱紀錄</button>
+    </div>
+
+    <section class="panel admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="manage">
+      <h2>欄位格式指引</h2>
+      <div class="panel-body small">
+        <p><b>學生名冊 CSV</b>：<span class="mono">年班,座號,姓名,學號</span></p>
+        <p><b>教職員名冊 CSV</b>：<span class="mono">身分證末四碼,姓名,處室,職務</span></p>
+        <p><b>書籍清冊 CSV</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span></p>
+        <p><b>借閱紀錄 CSV</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別</span></p>
+        <p>借閱規則：學生 5 本上限、教職員 10 本上限、借期 30 天，所有身分當日借不可當日還。</p>
+        <div class="btn-row">
+          <button id="tplStudentBtn" class="warn">下載學生模板</button>
+          <button id="tplStaffBtn" class="warn">下載教職員模板</button>
+          <button id="tplBookBtn" class="warn">下載書籍模板</button>
+          <button id="tplLoanBtn" class="warn">下載借閱模板</button>
+        </div>
+      </div>
+    </section>
+
+    <h3 class="section-title admin-only admin-tab-panel" id="adminManageTitle" data-admin-display="block" data-tab-panel="manage">資料管理（匯入/匯出）</h3>
+    <div class="toolbar admin-only admin-tab-panel" id="adminToolbar" data-admin-display="grid" data-tab-panel="manage">
+      <section class="panel">
+        <h2>學生名冊</h2>
+        <div class="panel-body">
+          <div id="studentStoreStatus" class="small">資料狀態：檢查中...</div>
+          <input id="studentImportInput" type="file" accept=".csv" />
+          <div class="btn-row"><button id="importStudentBtn">匯入學生名冊（覆蓋）</button><button id="exportStudentBtn" class="secondary">匯出學生名冊</button></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>教職員名冊</h2>
+        <div class="panel-body">
+          <div id="staffStoreStatus" class="small">資料狀態：檢查中...</div>
+          <input id="staffImportInput" type="file" accept=".csv" />
+          <div class="btn-row"><button id="importStaffBtn">匯入教職員名冊（覆蓋）</button><button id="exportStaffBtn" class="secondary">匯出教職員名冊</button></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>書籍清冊</h2>
+        <div class="panel-body">
+          <div id="bookStoreStatus" class="small">資料狀態：檢查中...</div>
+          <input id="bookImportInput" type="file" accept=".csv" />
+          <div class="btn-row"><button id="importBookBtn">匯入書籍清冊（覆蓋）</button><button id="exportBookBtn" class="secondary">匯出書籍清冊</button></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>借閱紀錄</h2>
+        <div class="panel-body">
+          <input id="loanImportInput" type="file" accept=".csv" />
+          <div class="btn-row">
+            <button id="importLoanBtn" class="danger">匯入借閱紀錄（覆蓋全部）</button>
+            <button id="exportLoanBtn" class="secondary">匯出借閱紀錄（時間戳）</button>
+            <button id="exportGradeBtn" class="warn">分年級匯出借閱報表</button>
+          </div>
+          <p class="small">匯入借閱紀錄前會跳出覆蓋提醒，確認後才執行。</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>舊系統匯入模塊</h2>
+        <div class="panel-body">
+          <div class="small">舊系統學生借閱紀錄（欄位：進出日期,學號,登錄號,書名,排架號,狀態）</div>
+          <input id="legacyStudentLoanInput" type="file" accept=".csv" />
+          <div class="btn-row">
+            <button id="importLegacyStudentLoanBtn">舊系統學生借閱紀錄匯入</button>
+          </div>
+          <div class="small" style="margin-top: 10px;">舊系統教職員借閱紀錄（欄位：處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間）</div>
+          <input id="legacyStaffLoanInput" type="file" accept=".csv" />
+          <div class="btn-row">
+            <button id="importLegacyStaffLoanBtn">舊系統教職員借閱紀錄匯入</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <h3 class="section-title admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="history">借閱紀錄管理</h3>
+    <section class="panel admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="history">
+      <div class="panel-body">
+        <div class="small">顯示全部紀錄，依借出時間由新到舊排序，每頁 50 筆。點擊【借出時間】或【歸還時間】可以切換排序</div>
+        <div class="pagination">
+          <button id="historyPrevBtn" class="secondary pager-btn">上一頁</button>
+          <button id="historyNextBtn" class="secondary pager-btn">下一頁</button>
+          <span id="historyPageInfo" class="small">第 1 / 1 頁</span>
+          <span id="historyCountInfo" class="small"></span>
+        </div>
+        <div class="table-wrap no-horizontal-scroll" style="margin-top: 8px; max-height: 420px;">
+          <table class="admin-history-table compact-table">
+            <colgroup>
+              <col style="width: 7%;">
+              <col style="width: 8%;">
+              <col style="width: 7%;">
+              <col style="width: 6%;">
+              <col style="width: 8%;">
+              <col style="width: 8%;">
+              <col style="width: 7%;">
+              <col style="width: 9%;">
+              <col style="width: 9%;">
+              <col style="width: 9%;">
+              <col style="width: 5%;">
+              <col style="width: 17%;">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>唯一識別碼</th><th>處室/班級</th><th>職務/座號</th><th>姓名</th><th>書名</th><th>ISBN</th><th>登錄號</th><th id="historyBorrowHeader" class="sortable-header">借出時間</th><th>應還時間</th><th id="historyReturnHeader" class="sortable-header">還書時間</th><th>身分別</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="historyManageBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div id="bottomModeNav" class="mode-nav bottom-nav front-only" data-front-display="flex">
+      <a id="adminLinkFooter" class="nav-btn" href="./admin.html">前往後台管理</a>
+      <span id="modeBadgeFooter" class="mode-badge"></span>
+    </div>
+
+    <div class="footer-note">程式開發:徐承佑</div>
+
+    <div id="message">系統啟動中...</div>
+  </div>
+
+  <script>
+    const DB_NAME = "library_loan_system";
+    const DB_VERSION = 1;
+
+    const STORE = { students: "students", staff: "staff", books: "books", loans: "loans" };
+    const RULE = { studentMaxBooks: 5, staffMaxBooks: 10, loanDays: 30 };
+    const isAdminMode = window.location.pathname.toLowerCase().endsWith("admin.html") || new URLSearchParams(window.location.search).get("mode") === "admin";
+    const HISTORY_PAGE_SIZE = 50;
+    const SCAN_DELAY_MS = 500;
+    const WORKFLOW_TIMEOUT_MS = 10000;
+    const LAST_FRONT_ACTION_KEY = "library_last_front_action";
+
+    let db;
+    let historyPage = 1;
+    let historyRowsCache = [];
+    let activeWorkflow = null;
+    let workflowTimeoutHandle = null;
+    let scanDebounceHandle = null;
+    let isAutoProcessing = false;
+    let activeAdminTab = "history";
+    let activeFrontTab = "borrow";
+    let historySortField = "borrowAtISO";
+    let historySortDir = "desc";
+
+    const el = {
+      todayRoc: document.getElementById("todayRoc"), userIdInput: document.getElementById("userIdInput"), bookIdInput: document.getElementById("bookIdInput"),
+      queryUserBtn: document.getElementById("queryUserBtn"), queryBookBtn: document.getElementById("queryBookBtn"), borrowBtn: document.getElementById("borrowBtn"), returnBtn: document.getElementById("returnBtn"),
+      quickExportLoanBtn: document.getElementById("quickExportLoanBtn"),
+      nameField: document.getElementById("nameField"), typeField: document.getElementById("typeField"), bookTitleField: document.getElementById("bookTitleField"), borrowCountField: document.getElementById("borrowCountField"), bookStatusField: document.getElementById("bookStatusField"),
+      activeBorrowBody: document.getElementById("activeBorrowBody"),
+      historyManageBody: document.getElementById("historyManageBody"),
+      historyPrevBtn: document.getElementById("historyPrevBtn"),
+      historyNextBtn: document.getElementById("historyNextBtn"),
+      historyPageInfo: document.getElementById("historyPageInfo"),
+      historyCountInfo: document.getElementById("historyCountInfo"),
+      historyBorrowHeader: document.getElementById("historyBorrowHeader"),
+      historyReturnHeader: document.getElementById("historyReturnHeader"),
+      frontTabBorrowBtn: document.getElementById("frontTabBorrowBtn"),
+      frontTabSearchBtn: document.getElementById("frontTabSearchBtn"),
+      catalogIdSearchInput: document.getElementById("catalogIdSearchInput"),
+      catalogKeywordSearchInput: document.getElementById("catalogKeywordSearchInput"),
+      catalogSearchByIdBtn: document.getElementById("catalogSearchByIdBtn"),
+      catalogSearchByKeywordBtn: document.getElementById("catalogSearchByKeywordBtn"),
+      catalogSearchBody: document.getElementById("catalogSearchBody"),
+      studentStoreStatus: document.getElementById("studentStoreStatus"),
+      staffStoreStatus: document.getElementById("staffStoreStatus"),
+      bookStoreStatus: document.getElementById("bookStoreStatus"),
+      adminTabManageBtn: document.getElementById("adminTabManageBtn"),
+      adminTabHistoryBtn: document.getElementById("adminTabHistoryBtn"),
+      studentImportInput: document.getElementById("studentImportInput"), staffImportInput: document.getElementById("staffImportInput"), bookImportInput: document.getElementById("bookImportInput"), loanImportInput: document.getElementById("loanImportInput"),
+      importStudentBtn: document.getElementById("importStudentBtn"), exportStudentBtn: document.getElementById("exportStudentBtn"), importStaffBtn: document.getElementById("importStaffBtn"), exportStaffBtn: document.getElementById("exportStaffBtn"),
+      importBookBtn: document.getElementById("importBookBtn"), exportBookBtn: document.getElementById("exportBookBtn"), importLoanBtn: document.getElementById("importLoanBtn"), exportLoanBtn: document.getElementById("exportLoanBtn"), exportGradeBtn: document.getElementById("exportGradeBtn"),
+      legacyStudentLoanInput: document.getElementById("legacyStudentLoanInput"),
+      legacyStaffLoanInput: document.getElementById("legacyStaffLoanInput"),
+      importLegacyStudentLoanBtn: document.getElementById("importLegacyStudentLoanBtn"),
+      importLegacyStaffLoanBtn: document.getElementById("importLegacyStaffLoanBtn"),
+      tplStudentBtn: document.getElementById("tplStudentBtn"), tplStaffBtn: document.getElementById("tplStaffBtn"), tplBookBtn: document.getElementById("tplBookBtn"), tplLoanBtn: document.getElementById("tplLoanBtn"),
+      topModeNav: document.getElementById("topModeNav"),
+      adminLink: document.getElementById("adminLink"),
+      adminLinkFooter: document.getElementById("adminLinkFooter"),
+      frontLink: document.getElementById("frontLink"),
+      modeBadge: document.getElementById("modeBadge"),
+      modeBadgeFooter: document.getElementById("modeBadgeFooter"),
+      storageWarning: document.getElementById("storageWarning"),
+      message: document.getElementById("message")
+    };
+
+
+    function setFrontTab(tabName) {
+      activeFrontTab = tabName;
+      document.querySelectorAll(".front-tab-btn").forEach(btn => {
+        btn.classList.toggle("active-tab", btn.dataset.tab === tabName);
+      });
+      if (isAdminMode) return;
+
+      document.querySelectorAll(".front-tab-panel").forEach(panel => {
+        const panelTab = panel.dataset.frontTab || "borrow";
+        panel.style.display = panelTab === tabName ? (panel.dataset.frontDisplay || "") : "none";
+      });
+    }
+
+    function setAdminTab(tabName) {
+      activeAdminTab = tabName;
+      document.querySelectorAll(".admin-tab-btn").forEach(btn => {
+        btn.classList.toggle("active-tab", btn.dataset.tab === tabName);
+      });
+      if (!isAdminMode) return;
+
+      document.querySelectorAll(".admin-tab-panel").forEach(panel => {
+        const panelTab = panel.dataset.tabPanel || "manage";
+        panel.style.display = panelTab === tabName ? (panel.dataset.adminDisplay || "") : "none";
+      });
+    }
+
+    function applyPageMode() {
+      document.querySelectorAll(".admin-only").forEach(node => {
+        node.style.display = isAdminMode ? (node.dataset.adminDisplay || "") : "none";
+      });
+      document.querySelectorAll(".front-only").forEach(node => {
+        node.style.display = isAdminMode ? "none" : (node.dataset.frontDisplay || "");
+      });
+
+      const topGrid = document.getElementById("topGrid");
+      if (topGrid) {
+        topGrid.style.gridTemplateColumns = isAdminMode ? "1fr" : "1fr 1.25fr";
+      }
+      if (el.topModeNav) el.topModeNav.style.display = isAdminMode ? "flex" : "none";
+
+      if (el.adminLink) el.adminLink.style.display = "none";
+      if (el.frontLink) el.frontLink.style.display = isAdminMode ? "inline-block" : "none";
+      if (el.adminLinkFooter) el.adminLinkFooter.style.display = isAdminMode ? "none" : "inline-block";
+      if (el.modeBadge) {
+        el.modeBadge.textContent = isAdminMode ? "目前：後台管理頁" : "";
+        el.modeBadge.style.display = isAdminMode ? "inline" : "none";
+      }
+      if (el.modeBadgeFooter) {
+        el.modeBadgeFooter.textContent = isAdminMode ? "" : "目前：前台借還頁";
+        el.modeBadgeFooter.style.display = isAdminMode ? "none" : "inline";
+      }
+      if (isAdminMode) setAdminTab(activeAdminTab);
+      if (!isAdminMode) setFrontTab(activeFrontTab);
+    }
+
+    function updateWorkflowButtons() {
+      if (!el.borrowBtn || !el.returnBtn) return;
+      const isBorrow = activeWorkflow === "borrow";
+      const isReturn = activeWorkflow === "return";
+
+      el.borrowBtn.classList.toggle("active-mode", isBorrow);
+      el.returnBtn.classList.toggle("active-mode", isReturn);
+      el.borrowBtn.textContent = isBorrow ? "借入（連續中）" : "借入";
+      el.returnBtn.textContent = isReturn ? "歸還（連續中）" : "歸還";
+    }
+
+    function clearWorkflowTimers() {
+      if (workflowTimeoutHandle) clearTimeout(workflowTimeoutHandle);
+      if (scanDebounceHandle) clearTimeout(scanDebounceHandle);
+      workflowTimeoutHandle = null;
+      scanDebounceHandle = null;
+    }
+
+    function touchWorkflowTimeout() {
+      if (!activeWorkflow) return;
+      if (workflowTimeoutHandle) clearTimeout(workflowTimeoutHandle);
+      workflowTimeoutHandle = setTimeout(() => {
+        deactivateWorkflow(`超過 ${WORKFLOW_TIMEOUT_MS / 1000} 秒未操作，已取消連續模式。`);
+      }, WORKFLOW_TIMEOUT_MS);
+    }
+
+    function deactivateWorkflow(msg = "", silent = false) {
+      activeWorkflow = null;
+      isAutoProcessing = false;
+      clearWorkflowTimers();
+      updateWorkflowButtons();
+      if (msg && !silent) message(msg);
+    }
+
+    function activateWorkflow(mode) {
+      if (activeWorkflow === mode) {
+        deactivateWorkflow("已取消連續模式。");
+        return;
+      }
+      activeWorkflow = mode;
+      updateWorkflowButtons();
+      touchWorkflowTimeout();
+      if (el.bookIdInput) el.bookIdInput.focus();
+      message(mode === "borrow" ? "借入連續模式啟用。請掃描書籍登錄號。" : "歸還連續模式啟用。請掃描書籍登錄號。");
+      scheduleAutoProcess();
+    }
+
+    function scheduleAutoProcess() {
+      if (!activeWorkflow || !el.bookIdInput) return;
+      if (scanDebounceHandle) clearTimeout(scanDebounceHandle);
+      scanDebounceHandle = setTimeout(() => {
+        processActiveWorkflow();
+      }, SCAN_DELAY_MS);
+    }
+    function message(text, isError = false) {
+      const hasText = String(text || "").trim() !== "";
+      el.message.style.display = hasText ? "block" : "none";
+      if (!hasText) {
+        el.message.textContent = "";
+        return;
+      }
+      el.message.textContent = text;
+      if (isError) {
+        el.message.style.background = "#ffecec";
+        el.message.style.borderColor = "#f2b6b6";
+        el.message.style.color = "#8f1d1d";
+      } else {
+        el.message.style.background = "#edf4ff";
+        el.message.style.borderColor = "#c5d7f3";
+        el.message.style.color = "#244475";
+      }
+    }
+
+    function setStorageWarning(text) {
+      if (!el.storageWarning) return;
+      const hasText = String(text || "").trim() !== "";
+      el.storageWarning.style.display = hasText ? "block" : "none";
+      el.storageWarning.textContent = hasText ? text : "";
+    }
+
+    async function checkStorageRiskAndNotify() {
+      const risks = [];
+
+      if (window.location.protocol === "file:") {
+        risks.push("目前以檔案模式（file://）開啟。部分瀏覽器可能在關閉後清除網站資料，建議改用 http://localhost 開啟。");
+      }
+
+      if (!("indexedDB" in window)) {
+        risks.push("此瀏覽器不支援 IndexedDB，資料可能無法保存。");
+      }
+
+      try {
+        if (navigator.storage && typeof navigator.storage.persisted === "function") {
+          let persisted = await navigator.storage.persisted();
+          if (!persisted && navigator.storage && typeof navigator.storage.persist === "function") {
+            try { persisted = await navigator.storage.persist(); } catch (_) {}
+          }
+          if (!persisted) {
+            risks.push("瀏覽器未啟用持久儲存；若有自動清除網站資料機制，借閱資料可能被清除。");
+          }
+        } else {
+          risks.push("此瀏覽器無法回報持久儲存狀態，無法確認是否會自動清除網站資料。");
+        }
+      } catch (_) {
+        risks.push("無法檢查瀏覽器儲存持久性狀態。");
+      }
+
+      if (!risks.length) {
+        setStorageWarning("");
+        return;
+      }
+
+      setStorageWarning("儲存風險提醒：" + risks.join(" "));
+      const warnKey = "library_storage_risk_warned";
+      if (!sessionStorage.getItem(warnKey)) {
+        alert("儲存風險提醒：\n" + risks.map((r, i) => `${i + 1}. ${r}`).join("\n"));
+        sessionStorage.setItem(warnKey, "1");
+      }
+    }
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+    function nowDate() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+    function toISODateOnly(dateObj) { return `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`; }
+    function toRocDate(dateObj) { return `${dateObj.getFullYear() - 1911}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`; }
+    function addDays(dateObj, days) { const d = new Date(dateObj); d.setDate(d.getDate() + days); return d; }
+    function ts() { const d = new Date(); return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`; }
+    function normalizeDigits(raw) { return String(raw || "").trim().replace(/\s+/g, ""); }
+    function normalizeStudentId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(6, "0"); }
+    function normalizeStaffId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(4, "0"); }
+    function inferPersonType(uniqueId) { if (/^\d{6}$/.test(uniqueId)) return "Student"; if (/^\d{4}$/.test(uniqueId)) return "Staff"; return ""; }
+
+    function parseRocDate(input) {
+      const s = String(input || "").trim();
+      if (!s) return null;
+      const parts = s.split(/[-\/]/).map(v => v.trim());
+      if (parts.length !== 3) return null;
+      const y = Number(parts[0]); const m = Number(parts[1]); const d = Number(parts[2]);
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+      return new Date(y + 1911, m - 1, d);
+    }
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (ev) => {
+          const _db = ev.target.result;
+          if (!_db.objectStoreNames.contains(STORE.students)) _db.createObjectStore(STORE.students, { keyPath: "id" });
+          if (!_db.objectStoreNames.contains(STORE.staff)) _db.createObjectStore(STORE.staff, { keyPath: "id" });
+          if (!_db.objectStoreNames.contains(STORE.books)) _db.createObjectStore(STORE.books, { keyPath: "bookId" });
+          if (!_db.objectStoreNames.contains(STORE.loans)) {
+            const store = _db.createObjectStore(STORE.loans, { keyPath: "recordId", autoIncrement: true });
+            store.createIndex("idx_uniqueId", "uniqueId", { unique: false });
+            store.createIndex("idx_bookId", "bookId", { unique: false });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function tx(storeNames, mode = "readonly") { return db.transaction(storeNames, mode); }
+    function reqToPromise(req) { return new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); }
+    async function storeGet(storeName, key) { const t = tx([storeName]); return reqToPromise(t.objectStore(storeName).get(key)); }
+    async function storePut(storeName, data) { const t = tx([storeName], "readwrite"); return reqToPromise(t.objectStore(storeName).put(data)); }
+    async function storeDelete(storeName, key) { const t = tx([storeName], "readwrite"); return reqToPromise(t.objectStore(storeName).delete(key)); }
+    async function storeGetAll(storeName) { const t = tx([storeName]); return reqToPromise(t.objectStore(storeName).getAll()); }
+
+    async function storeBulkReplace(storeName, rows) {
+      const t = tx([storeName], "readwrite");
+      const store = t.objectStore(storeName);
+      await reqToPromise(store.clear());
+      for (const row of rows) await reqToPromise(store.put(row));
+      await new Promise((resolve, reject) => { t.oncomplete = () => resolve(); t.onerror = () => reject(t.error); });
+    }
+    async function getPersonById(uniqueId) {
+      const type = inferPersonType(uniqueId);
+      if (!type) return null;
+      if (type === "Student") {
+        const s = await storeGet(STORE.students, uniqueId);
+        return s ? { type, uniqueId, name: s.name || "", deptClass: s.className || "", jobSeat: s.seatNo || "" } : null;
+      }
+      const st = await storeGet(STORE.staff, uniqueId);
+      return st ? { type, uniqueId, name: st.name || "", deptClass: st.dept || "", jobSeat: st.job || "" } : null;
+    }
+
+    async function getAllLoans() { return storeGetAll(STORE.loans); }
+
+    async function getActiveLoanByBookId(bookId) {
+      const loans = await getAllLoans();
+      let result = null;
+      for (const row of loans) {
+        if (String(row.bookId) === String(bookId) && !row.returnAtISO) {
+          if (!result || row.recordId > result.recordId) result = row;
+        }
+      }
+      return result;
+    }
+
+    async function getActiveLoansByUser(uniqueId) {
+      const loans = await getAllLoans();
+      return loans.filter(r => r.uniqueId === uniqueId && !r.returnAtISO).sort((a, b) => (a.borrowAtISO < b.borrowAtISO ? 1 : -1));
+    }
+
+    function clearPersonView() {
+      el.nameField.textContent = "-";
+      el.typeField.textContent = "-";
+      el.borrowCountField.textContent = "0";
+      el.activeBorrowBody.innerHTML = "";
+    }
+
+    function escapeHtml(input) {
+      return String(input).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function escapeHtmlAttr(input) {
+      return escapeHtml(String(input || "")).replace(/\n/g, " ");
+    }
+
+    function rememberFrontAction(action) {
+      try {
+        if (action === "borrow" || action === "return") {
+          localStorage.setItem(LAST_FRONT_ACTION_KEY, action);
+        }
+      } catch (_) {
+        // Ignore storage write failures.
+      }
+    }
+
+    function applyHistoryDefaultSortFromLastAction() {
+      let action = "";
+      try {
+        action = localStorage.getItem(LAST_FRONT_ACTION_KEY) || "";
+      } catch (_) {
+        action = "";
+      }
+      if (action === "return") {
+        historySortField = "returnAtISO";
+        historySortDir = "desc";
+      } else {
+        historySortField = "borrowAtISO";
+        historySortDir = "desc";
+      }
+    }
+
+    async function refreshMasterStoreStatus() {
+      const [students, staffs, books] = await Promise.all([
+        storeGetAll(STORE.students),
+        storeGetAll(STORE.staff),
+        storeGetAll(STORE.books)
+      ]);
+
+      if (el.studentStoreStatus) {
+        el.studentStoreStatus.textContent = students.length > 0 ? `資料狀態：已有 ${students.length} 筆紀錄` : "資料狀態：尚無資料";
+      }
+      if (el.staffStoreStatus) {
+        el.staffStoreStatus.textContent = staffs.length > 0 ? `資料狀態：已有 ${staffs.length} 筆紀錄` : "資料狀態：尚無資料";
+      }
+      if (el.bookStoreStatus) {
+        el.bookStoreStatus.textContent = books.length > 0 ? `資料狀態：已有 ${books.length} 筆紀錄` : "資料狀態：尚無資料";
+      }
+    }
+
+    function compareHistoryDate(a, b, field, dir) {
+      const av = a[field] || "";
+      const bv = b[field] || "";
+      const aEmpty = av === "";
+      const bEmpty = bv === "";
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+      if (av === bv) return 0;
+      if (dir === "desc") return av < bv ? 1 : -1;
+      return av > bv ? 1 : -1;
+    }
+
+    function sortHistoryRows() {
+      historyRowsCache.sort((a, b) => {
+        const dateCmp = compareHistoryDate(a, b, historySortField, historySortDir);
+        if (dateCmp !== 0) return dateCmp;
+        return (b.recordId || 0) - (a.recordId || 0);
+      });
+    }
+
+    function updateHistorySortHeaders() {
+      if (!el.historyBorrowHeader || !el.historyReturnHeader) return;
+      const borrowArrow = historySortField === "borrowAtISO" ? (historySortDir === "desc" ? " ▼" : " ▲") : "";
+      const returnArrow = historySortField === "returnAtISO" ? (historySortDir === "desc" ? " ▼" : " ▲") : "";
+      el.historyBorrowHeader.textContent = "借出時間" + borrowArrow;
+      el.historyReturnHeader.textContent = "還書時間" + returnArrow;
+    }
+
+    function toggleHistorySort(field) {
+      if (historySortField === field) {
+        historySortDir = historySortDir === "desc" ? "asc" : "desc";
+      } else {
+        historySortField = field;
+        historySortDir = "desc";
+      }
+      sortHistoryRows();
+      historyPage = 1;
+      renderHistoryPage();
+    }
+
+    async function refreshPersonBorrowList(uniqueId) {
+      if (!uniqueId) { clearPersonView(); return; }
+      const person = await getPersonById(uniqueId);
+      if (!person) { clearPersonView(); el.nameField.textContent = "查無此人"; return; }
+
+      const active = await getActiveLoansByUser(uniqueId);
+      el.nameField.textContent = person.name || "(無姓名)";
+      el.typeField.textContent = person.type === "Student" ? "學生" : "教職員";
+      el.borrowCountField.textContent = String(active.length);
+
+      if (!active.length) {
+        el.activeBorrowBody.innerHTML = "<tr><td colspan='4'>目前無借閱中書籍</td></tr>";
+        return;
+      }
+
+      el.activeBorrowBody.innerHTML = active.map(r => `<tr><td>${escapeHtml(r.bookId || "")}</td><td>${escapeHtml(r.bookTitle || "")}</td><td>${escapeHtml(r.borrowDateROC || "")}</td><td>${escapeHtml(r.dueDateROC || "")}</td></tr>`).join("");
+    }
+
+    function renderHistoryPage() {
+      if (!el.historyManageBody) return;
+      const total = historyRowsCache.length;
+      const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
+      historyPage = Math.min(Math.max(1, historyPage), totalPages);
+
+      if (!total) {
+        el.historyManageBody.innerHTML = "<tr><td colspan='12'>尚無借閱紀錄</td></tr>";
+        if (el.historyPageInfo) el.historyPageInfo.textContent = "第 1 / 1 頁";
+        if (el.historyCountInfo) el.historyCountInfo.textContent = "共 0 筆";
+        if (el.historyPrevBtn) el.historyPrevBtn.disabled = true;
+        if (el.historyNextBtn) el.historyNextBtn.disabled = true;
+        return;
+      }
+
+      const start = (historyPage - 1) * HISTORY_PAGE_SIZE;
+      const pageRows = historyRowsCache.slice(start, start + HISTORY_PAGE_SIZE);
+
+      el.historyManageBody.innerHTML = pageRows.map(r => {
+        const canDeleteReturn = !!r.returnAtISO;
+        const actionButtons = canDeleteReturn
+          ? `<button class="history-action warn" data-action="delete-return" data-id="${r.recordId}">刪除歸還</button>
+             <button class="history-action danger" data-action="delete-full" data-id="${r.recordId}">刪除整筆</button>`
+          : `<button class="history-action danger" data-action="delete-full" data-id="${r.recordId}">刪除整筆</button>`;
+
+        return `
+        <tr>
+          <td>${escapeHtml(r.uniqueId || "")}</td>
+          <td>${escapeHtml(r.deptClass || "")}</td>
+          <td>${escapeHtml(r.jobSeat || "")}</td>
+          <td>${escapeHtml(r.name || "")}</td>
+          <td class="book-title-cell" title="${escapeHtmlAttr(r.bookTitle || "")}">${escapeHtml(r.bookTitle || "")}</td>
+          <td>${escapeHtml(r.isbn || "")}</td>
+          <td>${escapeHtml(r.bookId || "")}</td>
+          <td>${escapeHtml(r.borrowDateROC || "")}</td>
+          <td>${escapeHtml(r.dueDateROC || "")}</td>
+          <td>${escapeHtml(r.returnDateROC || "")}</td>
+          <td>${r.personType === "Student" ? "學生" : "教職員"}</td>
+          <td>${actionButtons}</td>
+        </tr>`;
+      }).join("");
+
+      if (el.historyPageInfo) el.historyPageInfo.textContent = `第 ${historyPage} / ${totalPages} 頁`;
+      if (el.historyCountInfo) el.historyCountInfo.textContent = `共 ${total} 筆`;
+      if (el.historyPrevBtn) el.historyPrevBtn.disabled = historyPage <= 1;
+      if (el.historyNextBtn) el.historyNextBtn.disabled = historyPage >= totalPages;
+      updateHistorySortHeaders();
+    }
+
+    async function refreshHistoryTable(resetToFirstPage = false) {
+      historyRowsCache = await getAllLoans();
+      sortHistoryRows();
+      if (resetToFirstPage) historyPage = 1;
+      renderHistoryPage();
+    }
+
+    async function deleteLoanRecordFully(recordId) {
+      const row = await storeGet(STORE.loans, recordId);
+      if (!row) throw new Error("查無此筆紀錄，可能已被刪除。");
+      await storeDelete(STORE.loans, recordId);
+    }
+
+    async function deleteReturnPartOnly(recordId) {
+      const row = await storeGet(STORE.loans, recordId);
+      if (!row) throw new Error("查無此筆紀錄，可能已被刪除。");
+      if (!row.returnAtISO) throw new Error("此筆目前是未歸還狀態，沒有可刪除的歸還紀錄。");
+
+      const allRows = await getAllLoans();
+      const conflict = allRows.some(r =>
+        r.recordId !== row.recordId &&
+        String(r.bookId) === String(row.bookId) &&
+        !r.returnAtISO
+      );
+      if (conflict) {
+        throw new Error("無法只刪除歸還：此書已有其他未歸還紀錄，請改用刪除整筆。");
+      }
+
+      const updated = { ...row, returnAtISO: "", returnDateROC: "" };
+      await storePut(STORE.loans, updated);
+    }
+
+    async function handleHistoryActionClick(evt) {
+      const target = evt.target.closest("button[data-action][data-id]");
+      if (!target) return;
+
+      const recordId = Number(target.dataset.id);
+      const action = target.dataset.action;
+      if (!Number.isFinite(recordId)) return;
+
+      try {
+        if (action === "delete-return") {
+          if (!window.confirm("確定刪除此筆的『歸還』紀錄？借出資料會保留。")) return;
+          await deleteReturnPartOnly(recordId);
+          message("已刪除歸還紀錄（借出資料保留）。");
+        } else if (action === "delete-full") {
+          if (!window.confirm("確定刪除整筆借閱紀錄（借出與歸還一起刪除）？")) return;
+          await deleteLoanRecordFully(recordId);
+          message("已刪除整筆借閱紀錄。");
+        } else {
+          return;
+        }
+
+        await refreshHistoryTable();
+        await queryUserByCurrentInput();
+        await queryBookByCurrentInput();
+      } catch (err) {
+        alert(err.message || String(err));
+        message(err.message || String(err), true);
+      }
+    }
+
+    async function queryUser() {
+      const raw = normalizeDigits(el.userIdInput.value);
+      if (!raw) { clearPersonView(); message("請輸入學生 6 碼或教職員 4 碼識別碼。", true); return; }
+      if (!/^\d{4}$|^\d{6}$/.test(raw)) { message("識別碼格式錯誤：學生必須 6 碼，教職員必須 4 碼。", true); return; }
+
+      const normalized = raw.length === 6 ? normalizeStudentId(raw) : normalizeStaffId(raw);
+      el.userIdInput.value = normalized;
+      await refreshPersonBorrowList(normalized);
+      message("人員借閱查詢完成。");
+    }
+
+    async function queryBook() {
+      const bookId = normalizeDigits(el.bookIdInput.value);
+      if (!bookId) { message("請輸入書籍登錄號。", true); return; }
+      const book = await storeGet(STORE.books, bookId);
+      el.bookTitleField.textContent = book ? (book.title || "") : "查無此書";
+      const activeLoan = await getActiveLoanByBookId(bookId);
+      el.bookStatusField.textContent = activeLoan ? `已借出（${activeLoan.name} / ${activeLoan.uniqueId}）` : "在庫（可借閱）";
+      if (activeLoan) {
+        el.userIdInput.value = activeLoan.uniqueId || "";
+        await refreshPersonBorrowList(activeLoan.uniqueId || "");
+      }
+      message("書籍狀態查詢完成。");
+    }
+
+    async function processBorrowOnce() {
+      const rawId = normalizeDigits(el.userIdInput.value);
+      const bookId = normalizeDigits(el.bookIdInput.value);
+
+      if (!/^\d{4}$|^\d{6}$/.test(rawId)) throw new Error("借入失敗：請先輸入正確識別碼（學生 6 碼 / 教職員 4 碼）。");
+      if (!bookId) throw new Error("借入失敗：請輸入書籍登錄號。");
+
+      const uniqueId = rawId.length === 6 ? normalizeStudentId(rawId) : normalizeStaffId(rawId);
+      el.userIdInput.value = uniqueId;
+      const person = await getPersonById(uniqueId);
+      if (!person) throw new Error("借入失敗：查無此人員名冊資料。");
+
+      const activeLoan = await getActiveLoanByBookId(bookId);
+      if (activeLoan) throw new Error("借入失敗：此書目前已借出。");
+
+      const activeByUser = await getActiveLoansByUser(uniqueId);
+      const limit = person.type === "Student" ? RULE.studentMaxBooks : RULE.staffMaxBooks;
+      if (activeByUser.length >= limit) {
+        await refreshPersonBorrowList(uniqueId);
+        throw new Error(`借入失敗：${person.name} 已達借閱上限 ${limit} 本。`);
+      }
+
+      const book = await storeGet(STORE.books, bookId);
+      if (!book) throw new Error("借入失敗：書籍清冊查無此登錄號。");
+      const bookTitle = book.title || "未知書名";
+      const isbn = book.isbn || "";
+
+      const bDate = nowDate();
+      const due = addDays(bDate, RULE.loanDays);
+      await storePut(STORE.loans, {
+        uniqueId, personType: person.type, deptClass: person.deptClass || "", jobSeat: person.jobSeat || "", name: person.name || "",
+        bookTitle, isbn, bookId,
+        borrowAtISO: toISODateOnly(bDate), dueAtISO: toISODateOnly(due), returnAtISO: "",
+        borrowDateROC: toRocDate(bDate), dueDateROC: toRocDate(due), returnDateROC: ""
+      });
+
+      el.bookIdInput.value = "";
+      el.bookTitleField.textContent = bookTitle;
+      el.bookStatusField.textContent = "已借出";
+      rememberFrontAction("borrow");
+      await refreshPersonBorrowList(uniqueId);
+      await refreshHistoryTable(true);
+      message(`借入完成：${person.name} / ${bookTitle}`);
+    }
+
+    async function processReturnOnce() {
+      const bookId = normalizeDigits(el.bookIdInput.value);
+      if (!bookId) throw new Error("歸還失敗：請輸入書籍登錄號。");
+
+      const active = await getActiveLoanByBookId(bookId);
+      if (!active) throw new Error("歸還失敗：查無未歸還借閱紀錄。");
+
+      const today = nowDate();
+      if (active.borrowAtISO === toISODateOnly(today)) {
+        throw new Error("歸還失敗：當日借不可當日還。");
+      }
+
+      const updated = { ...active, returnAtISO: toISODateOnly(today), returnDateROC: toRocDate(today) };
+      await storePut(STORE.loans, updated);
+
+      el.userIdInput.value = active.uniqueId;
+      el.bookIdInput.value = "";
+      el.nameField.textContent = active.name || "-";
+      el.typeField.textContent = active.personType === "Student" ? "學生" : "教職員";
+      el.bookStatusField.textContent = "在庫（可借閱）";
+      rememberFrontAction("return");
+      await refreshPersonBorrowList(active.uniqueId);
+      await refreshHistoryTable();
+      message(`歸還完成：${active.bookId} / ${active.bookTitle}`);
+    }
+
+    async function processActiveWorkflow() {
+      if (!activeWorkflow || isAutoProcessing) return;
+      const bookId = normalizeDigits(el.bookIdInput.value);
+      if (!bookId) return;
+
+      isAutoProcessing = true;
+      try {
+        if (activeWorkflow === "borrow") {
+          await processBorrowOnce();
+        } else if (activeWorkflow === "return") {
+          await processReturnOnce();
+        }
+        touchWorkflowTimeout();
+      } catch (err) {
+        alert(err.message || String(err));
+        message(err.message || String(err), true);
+        deactivateWorkflow("", true);
+      } finally {
+        isAutoProcessing = false;
+      }
+    }
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let current = "";
+      let inQuotes = false;
+      const src = String(text || "").replace(/^\uFEFF/, "");
+
+      for (let i = 0; i < src.length; i++) {
+        const ch = src[i];
+        const next = src[i + 1];
+
+        if (ch === '"') {
+          if (inQuotes && next === '"') { current += '"'; i++; } else { inQuotes = !inQuotes; }
+          continue;
+        }
+
+        if (!inQuotes && ch === ",") { row.push(current); current = ""; continue; }
+
+        if (!inQuotes && (ch === "\n" || ch === "\r")) {
+          if (ch === "\r" && next === "\n") i++;
+          row.push(current);
+          if (row.some(cell => String(cell).trim() !== "")) rows.push(row.map(c => String(c).trim()));
+          row = [];
+          current = "";
+          continue;
+        }
+
+        current += ch;
+      }
+
+      if (current.length || row.length) {
+        row.push(current);
+        if (row.some(cell => String(cell).trim() !== "")) rows.push(row.map(c => String(c).trim()));
+      }
+
+      return rows;
+    }
+
+    function csvEscape(cell) {
+      const s = String(cell ?? "");
+      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    }
+
+    function toCSV(rows) { return rows.map(r => r.map(csvEscape).join(",")).join("\r\n"); }
+
+    function downloadCSV(filename, rows) {
+      const csv = toCSV(rows);
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function getHeaderIndex(header, aliases) {
+      const normalized = header.map(h => String(h).trim());
+      for (const name of aliases) {
+        const idx = normalized.findIndex(h => h === name);
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    }
+
+    function normalizeHeaderCells(headerRow) {
+      const cleaned = (headerRow || []).map(h =>
+        String(h || "")
+          .replace(/^\uFEFF/, "")
+          .replace(/\u200B/g, "")
+          .trim()
+      );
+      while (cleaned.length > 0 && cleaned[cleaned.length - 1] === "") {
+        cleaned.pop();
+      }
+      return cleaned;
+    }
+
+    function assertExactHeader(actualHeader, expectedHeader, label) {
+      const actual = normalizeHeaderCells(actualHeader);
+      const expected = normalizeHeaderCells(expectedHeader);
+      const sameLength = actual.length === expected.length;
+      const sameContent = sameLength && expected.every((v, i) => actual[i] === v);
+      if (!sameContent) {
+        throw new Error(`${label}格式不符合。標題欄必須為：${expected.join(",")}`);
+      }
+    }
+
+    async function readFileText(fileInput) {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) throw new Error("請先選擇 CSV 檔案。");
+      const bytes = await file.arrayBuffer();
+      let text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      if (text.includes("\uFFFD")) {
+        try {
+          const big5Text = new TextDecoder("big5", { fatal: false }).decode(bytes);
+          const badUtf8Score = (text.match(/\uFFFD/g) || []).length;
+          const badBig5Score = (big5Text.match(/\uFFFD/g) || []).length;
+          if (badBig5Score <= badUtf8Score) text = big5Text;
+        } catch (_) {
+          // Keep UTF-8 decoded text when Big5 decoder is unavailable.
+        }
+      }
+      return text;
+    }
+
+    function parseFlexibleDate(raw) {
+      const s = String(raw || "").trim();
+      if (!s) return null;
+      const parts = s.split(/[\/-]/).map(v => Number(v.trim()));
+      if (parts.length !== 3 || parts.some(v => !Number.isFinite(v))) return null;
+      let [year, month, day] = parts;
+      if (year < 1911) year += 1911;
+      const d = new Date(year, month - 1, day);
+      if (Number.isNaN(d.getTime())) return null;
+      return d;
+    }
+
+    async function importLegacyStudentLoans() {
+      const text = await readFileText(el.legacyStudentLoanInput);
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error("舊系統學生借閱紀錄檔案沒有資料。");
+      assertExactHeader(rows[0], ["進出日期", "學號", "登錄號", "書名", "排架號", "狀態"], "舊系統學生借閱紀錄 CSV");
+
+      const students = await storeGetAll(STORE.students);
+      const books = await storeGetAll(STORE.books);
+      const existingLoans = await storeGetAll(STORE.loans);
+
+      const studentMap = new Map(students.map(s => [s.id, s]));
+      const bookMap = new Map(books.map(b => [b.bookId, b]));
+      const existingOpenByKey = new Map();
+      const updatesById = new Map();
+      const pendingNewOpenByKey = new Map();
+      const newRows = [];
+
+      for (const row of existingLoans) {
+        if (row.personType !== "Student" || row.returnAtISO) continue;
+        const key = `${row.uniqueId}|${row.bookId}`;
+        if (!existingOpenByKey.has(key)) existingOpenByKey.set(key, []);
+        existingOpenByKey.get(key).push(row);
+      }
+      for (const rowsByKey of existingOpenByKey.values()) {
+        rowsByKey.sort((a, b) => {
+          if (a.borrowAtISO === b.borrowAtISO) return (a.recordId || 0) - (b.recordId || 0);
+          return a.borrowAtISO > b.borrowAtISO ? 1 : -1;
+        });
+      }
+
+      let skippedNoStudent = 0;
+      let skippedNoDate = 0;
+      let skippedNoBook = 0;
+      let skippedNoMatchReturn = 0;
+      let skippedBadStatus = 0;
+      let returnAppliedToNew = 0;
+      let returnAppliedToExisting = 0;
+
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const opDate = parseFlexibleDate(r[0]);
+        const sid = normalizeStudentId(r[1]);
+        const bookId = normalizeDigits(r[2]);
+        const titleRaw = r[3] || "";
+        const status = String(r[5] || "").trim();
+
+        if (!opDate) { skippedNoDate++; continue; }
+        if (!bookId) { skippedNoBook++; continue; }
+        if (!/^\d{6}$/.test(sid) || !studentMap.has(sid)) { skippedNoStudent++; continue; }
+
+        const student = studentMap.get(sid);
+        const book = bookMap.get(bookId);
+        const key = `${sid}|${bookId}`;
+
+        if (status === "借出" || status === "借入") {
+          const due = addDays(opDate, RULE.loanDays);
+          const loan = {
+            uniqueId: sid,
+            personType: "Student",
+            deptClass: student.className || "",
+            jobSeat: student.seatNo || "",
+            name: student.name || "",
+            bookTitle: titleRaw || (book ? (book.title || "") : ""),
+            isbn: book ? (book.isbn || "") : "",
+            bookId,
+            borrowAtISO: toISODateOnly(opDate),
+            dueAtISO: toISODateOnly(due),
+            returnAtISO: "",
+            borrowDateROC: toRocDate(opDate),
+            dueDateROC: toRocDate(due),
+            returnDateROC: ""
+          };
+          newRows.push(loan);
+          if (!pendingNewOpenByKey.has(key)) pendingNewOpenByKey.set(key, []);
+          pendingNewOpenByKey.get(key).push(loan);
+          continue;
+        }
+
+        if (status === "歸還") {
+          const newOpenList = pendingNewOpenByKey.get(key) || [];
+          if (newOpenList.length) {
+            const target = newOpenList[newOpenList.length - 1];
+            target.returnAtISO = toISODateOnly(opDate);
+            target.returnDateROC = toRocDate(opDate);
+            newOpenList.pop();
+            returnAppliedToNew++;
+            continue;
+          }
+
+          const oldOpenList = existingOpenByKey.get(key) || [];
+          if (!oldOpenList.length) {
+            skippedNoMatchReturn++;
+            continue;
+          }
+
+          const oldTarget = oldOpenList.pop();
+          updatesById.set(oldTarget.recordId, {
+            ...oldTarget,
+            returnAtISO: toISODateOnly(opDate),
+            returnDateROC: toRocDate(opDate)
+          });
+          returnAppliedToExisting++;
+          continue;
+        }
+
+        skippedBadStatus++;
+      }
+
+      for (const row of updatesById.values()) {
+        await storePut(STORE.loans, row);
+      }
+      for (const row of newRows) {
+        await storePut(STORE.loans, row);
+      }
+
+      await refreshHistoryTable(true);
+      await queryUserByCurrentInput();
+      await queryBookByCurrentInput();
+
+      const msg = `舊系統學生借閱紀錄匯入完成。新增 ${newRows.length} 筆，補上歸還（新匯入）${returnAppliedToNew} 筆，補上歸還（既有紀錄）${returnAppliedToExisting} 筆；略過：無對應學生 ${skippedNoStudent}、日期錯誤 ${skippedNoDate}、無登錄號 ${skippedNoBook}、找不到可配對歸還 ${skippedNoMatchReturn}、狀態異常 ${skippedBadStatus}。`;
+      message(msg);
+      alert(msg);
+    }
+
+    async function importLegacyStaffLoans() {
+      const text = await readFileText(el.legacyStaffLoanInput);
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error("舊系統教職員借閱紀錄檔案沒有資料。");
+      assertExactHeader(rows[0], ["處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間"], "舊系統教職員借閱紀錄 CSV");
+
+      const staffs = await storeGetAll(STORE.staff);
+      const books = await storeGetAll(STORE.books);
+      const bookMap = new Map(books.map(b => [b.bookId, b]));
+
+      const staffByName = new Map();
+      const staffByComposite = new Map();
+      for (const s of staffs) {
+        if (!staffByName.has(s.name)) staffByName.set(s.name, []);
+        staffByName.get(s.name).push(s);
+        const key = `${s.dept || ""}|${s.job || ""}|${s.name || ""}`;
+        if (!staffByComposite.has(key)) {
+          staffByComposite.set(key, s.id);
+        } else {
+          staffByComposite.set(key, "");
+        }
+      }
+
+      const newRows = [];
+      let skippedNoStaff = 0;
+      let skippedNoBorrowDate = 0;
+      let skippedNoBook = 0;
+
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const dept = r[0] || "";
+        const job = r[1] || "";
+        const name = r[2] || "";
+        const bookTitle = r[3] || "";
+        const isbnRaw = r[4] || "";
+        const bookId = normalizeDigits(r[5]);
+        const borrowDate = parseFlexibleDate(r[6]);
+        const dueDate = parseFlexibleDate(r[7]) || (borrowDate ? addDays(borrowDate, RULE.loanDays) : null);
+        const returnDate = parseFlexibleDate(r[8]);
+
+        if (!bookId) { skippedNoBook++; continue; }
+        if (!borrowDate || !dueDate) { skippedNoBorrowDate++; continue; }
+
+        let uid = "";
+        const compositeKey = `${dept}|${job}|${name}`;
+        const byComposite = staffByComposite.get(compositeKey);
+        if (byComposite) {
+          uid = byComposite;
+        } else {
+          const sameName = staffByName.get(name) || [];
+          if (sameName.length === 1) uid = sameName[0].id;
+        }
+        if (!uid) { skippedNoStaff++; continue; }
+
+        const book = bookMap.get(bookId);
+        newRows.push({
+          uniqueId: uid,
+          personType: "Staff",
+          deptClass: dept,
+          jobSeat: job,
+          name,
+          bookTitle: bookTitle || (book ? (book.title || "") : ""),
+          isbn: isbnRaw || (book ? (book.isbn || "") : ""),
+          bookId,
+          borrowAtISO: toISODateOnly(borrowDate),
+          dueAtISO: toISODateOnly(dueDate),
+          returnAtISO: returnDate ? toISODateOnly(returnDate) : "",
+          borrowDateROC: toRocDate(borrowDate),
+          dueDateROC: toRocDate(dueDate),
+          returnDateROC: returnDate ? toRocDate(returnDate) : ""
+        });
+      }
+
+      for (const row of newRows) {
+        await storePut(STORE.loans, row);
+      }
+
+      await refreshHistoryTable(true);
+      await queryUserByCurrentInput();
+      await queryBookByCurrentInput();
+
+      const msg = `舊系統教職員借閱紀錄匯入完成。新增 ${newRows.length} 筆；略過：找不到可對應教職員 ${skippedNoStaff}、借出/應還日期錯誤 ${skippedNoBorrowDate}、無登錄號 ${skippedNoBook}。`;
+      message(msg);
+      alert(msg);
+    }
+
+    async function importStudents() {
+      const text = await readFileText(el.studentImportInput);
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error("學生名冊檔案沒有資料。");
+
+      const expectedHeader = ["年班", "座號", "姓名", "學號"];
+      assertExactHeader(rows[0], expectedHeader, "學生名冊 CSV");
+
+      const result = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const idRaw = normalizeStudentId(r[3]);
+        if (!/^\d{6}$/.test(idRaw)) continue;
+        result.push({ id: idRaw, className: r[0] || "", seatNo: r[1] || "", name: r[2] || "" });
+      }
+
+      await storeBulkReplace(STORE.students, result);
+      await refreshMasterStoreStatus();
+      message(`學生名冊匯入完成，共 ${result.length} 筆。`);
+      alert(`學生名冊匯入成功，共 ${result.length} 筆。`);
+      await queryUserByCurrentInput();
+    }
+
+    async function importStaff() {
+      const text = await readFileText(el.staffImportInput);
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error("教職員名冊檔案沒有資料。");
+
+      const expectedHeader = ["身分證末四碼", "姓名", "處室", "職務"];
+      assertExactHeader(rows[0], expectedHeader, "教職員名冊 CSV");
+
+      const result = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const idRaw = normalizeStaffId(r[0]);
+        if (!/^\d{4}$/.test(idRaw)) continue;
+        result.push({ id: idRaw, name: r[1] || "", dept: r[2] || "", job: r[3] || "" });
+      }
+
+      await storeBulkReplace(STORE.staff, result);
+      await refreshMasterStoreStatus();
+      message(`教職員名冊匯入完成，共 ${result.length} 筆。`);
+      alert(`教職員名冊匯入成功，共 ${result.length} 筆。`);
+      await queryUserByCurrentInput();
+    }
+
+    async function importBooks() {
+      const text = await readFileText(el.bookImportInput);
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error("書籍清冊檔案沒有資料。");
+
+      const expectedHeader = ["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"];
+      assertExactHeader(rows[0], expectedHeader, "書籍清冊 CSV");
+
+      const result = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const bookId = normalizeDigits(r[0]);
+        if (!bookId) continue;
+        result.push({
+          bookId,
+          title: r[1] || "",
+          author: r[2] || "",
+          isbn: r[3] || "",
+          binding: r[4] || "",
+          specialNo: r[5] || "",
+          callNo: r[6] || "",
+          location: r[7] || "",
+          categoryNo: r[8] || "",
+          shelfNo: r[9] || ""
+        });
+      }
+
+      await storeBulkReplace(STORE.books, result);
+      await refreshMasterStoreStatus();
+      message(`書籍清冊匯入完成，共 ${result.length} 筆。`);
+      alert(`書籍清冊匯入成功，共 ${result.length} 筆。`);
+      await queryBookByCurrentInput();
+    }
+
+    async function importLoansOverwrite() {
+      if (!window.confirm("即將覆蓋目前全部借閱紀錄，是否確定繼續？")) {
+        message("已取消借閱紀錄匯入。", true);
+        return;
+      }
+
+      const text = await readFileText(el.loanImportInput);
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error("借閱紀錄檔案沒有資料。");
+
+      const expectedHeader = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"];
+      assertExactHeader(rows[0], expectedHeader, "借閱紀錄 CSV");
+
+      const result = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const uidRaw = normalizeDigits(r[0]);
+        const inferType = r[10] ? (/學生/.test(r[10]) ? "Student" : "Staff") : inferPersonType(uidRaw);
+        const uniqueId = inferType === "Student" ? normalizeStudentId(uidRaw) : normalizeStaffId(uidRaw);
+        if (!/^(\d{6}|\d{4})$/.test(uniqueId)) continue;
+
+        const borrowDate = parseRocDate(r[7]);
+        const dueDate = parseRocDate(r[8]);
+        const returnDate = parseRocDate(r[9]);
+        if (!borrowDate || !dueDate) continue;
+
+        result.push({
+          uniqueId,
+          personType: inferType || inferPersonType(uniqueId) || "Student",
+          deptClass: r[1] || "",
+          jobSeat: r[2] || "",
+          name: r[3] || "",
+          bookTitle: r[4] || "",
+          isbn: r[5] || "",
+          bookId: normalizeDigits(r[6]),
+          borrowAtISO: toISODateOnly(borrowDate),
+          dueAtISO: toISODateOnly(dueDate),
+          returnAtISO: returnDate ? toISODateOnly(returnDate) : "",
+          borrowDateROC: r[7] || toRocDate(borrowDate),
+          dueDateROC: r[8] || toRocDate(dueDate),
+          returnDateROC: returnDate ? (r[9] || toRocDate(returnDate)) : ""
+        });
+      }
+
+      await storeBulkReplace(STORE.loans, result);
+      await refreshHistoryTable(true);
+      await queryUserByCurrentInput();
+      await queryBookByCurrentInput();
+      message(`借閱紀錄匯入完成（覆蓋），共 ${result.length} 筆。`);
+      alert(`借閱紀錄匯入成功（覆蓋），共 ${result.length} 筆。`);
+    }
+
+    async function exportStudents() {
+      const rows = await storeGetAll(STORE.students);
+      rows.sort((a, b) => a.id.localeCompare(b.id));
+      downloadCSV(`學生名冊_${ts()}.csv`, [["年班", "座號", "姓名", "學號"], ...rows.map(r => [r.className || "", r.seatNo || "", r.name || "", r.id])]);
+      message(`已匯出學生名冊 ${rows.length} 筆。`);
+    }
+
+    async function exportStaff() {
+      const rows = await storeGetAll(STORE.staff);
+      rows.sort((a, b) => a.id.localeCompare(b.id));
+      downloadCSV(`教職員名冊_${ts()}.csv`, [["身分證末四碼", "姓名", "處室", "職務"], ...rows.map(r => [r.id, r.name || "", r.dept || "", r.job || ""])]);
+      message(`已匯出教職員名冊 ${rows.length} 筆。`);
+    }
+
+    async function exportBooks() {
+      const rows = await storeGetAll(STORE.books);
+      rows.sort((a, b) => a.bookId.localeCompare(b.bookId));
+      const header = ["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"];
+      downloadCSV(`書籍清冊_${ts()}.csv`, [header, ...rows.map(r => [r.bookId || "", r.title || "", r.author || "", r.isbn || "", r.binding || "", r.specialNo || "", r.callNo || "", r.location || "", r.categoryNo || "", r.shelfNo || ""]) ]);
+      message(`已匯出書籍清冊 ${rows.length} 筆。`);
+    }
+
+    async function exportLoans() {
+      const rows = await storeGetAll(STORE.loans);
+      rows.sort((a, b) => (a.borrowAtISO === b.borrowAtISO ? (a.recordId || 0) - (b.recordId || 0) : a.borrowAtISO > b.borrowAtISO ? 1 : -1));
+      const header = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"];
+      downloadCSV(`借閱紀錄_${ts()}.csv`, [header, ...rows.map(r => [r.uniqueId || "", r.deptClass || "", r.jobSeat || "", r.name || "", r.bookTitle || "", r.isbn || "", r.bookId || "", r.borrowDateROC || "", r.dueDateROC || "", r.returnDateROC || "", r.personType === "Student" ? "學生" : "教職員"]) ]);
+      message(`已匯出借閱紀錄 ${rows.length} 筆。`);
+    }
+    function detectGrade(className) {
+      const raw = String(className || "").trim();
+      if (!raw) return "";
+      const chinese = raw.match(/([一二三四五六])年/);
+      if (chinese) return chinese[1];
+      const arabic = raw.match(/([1-6])\s*年?/);
+      if (arabic) {
+        const map = { "1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六" };
+        return map[arabic[1]] || "";
+      }
+      return "";
+    }
+
+    async function exportGradeReports() {
+      const loans = await storeGetAll(STORE.loans);
+      const students = await storeGetAll(STORE.students);
+      const studentMap = new Map(students.map(s => [s.id, s]));
+
+      const baseHeader = ["處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間"];
+      const groups = { "一": [baseHeader], "二": [baseHeader], "三": [baseHeader], "四": [baseHeader], "五": [baseHeader], "六": [baseHeader] };
+
+      for (const r of loans) {
+        if (r.personType !== "Student") continue;
+        const stu = studentMap.get(r.uniqueId);
+        const className = (stu && stu.className) || r.deptClass || "";
+        const seat = (stu && stu.seatNo) || r.jobSeat || "";
+        const grade = detectGrade(className);
+        if (!grade || !groups[grade]) continue;
+
+        groups[grade].push([
+          className,
+          seat,
+          (stu && stu.name) || r.name || "",
+          r.bookTitle || "",
+          r.isbn || "",
+          r.bookId || "",
+          r.borrowDateROC || "",
+          r.dueDateROC || "",
+          r.returnDateROC || ""
+        ]);
+      }
+
+      const stamp = ts();
+      let countFiles = 0;
+      const noData = [];
+      let delay = 0;
+
+      for (const grade of ["一", "二", "三", "四", "五", "六"]) {
+        const rows = groups[grade];
+        if (rows.length <= 1) { noData.push(grade); continue; }
+        setTimeout(() => { downloadCSV(`${grade}年級借閱清冊_${stamp}.csv`, rows); }, delay);
+        delay += 220;
+        countFiles++;
+      }
+
+      if (!countFiles) {
+        message("分年級匯出完成：目前六個年級都沒有可匯出資料。", true);
+      } else {
+        const noDataText = noData.length ? `；無資料年級：${noData.join("、")}` : "";
+        message(`分年級匯出完成：共 ${countFiles} 個檔案${noDataText}`);
+      }
+    }
+
+    function installTemplateButtons() {
+      el.tplStudentBtn.addEventListener("click", () => {
+        downloadCSV("學生名冊模板.csv", [["年班", "座號", "姓名", "學號"], ["一年1班", "1", "王小明", "114001"]]);
+      });
+
+      el.tplStaffBtn.addEventListener("click", () => {
+        downloadCSV("教職員名冊模板.csv", [["身分證末四碼", "姓名", "處室", "職務"], ["0028", "卓士勛", "輔導室", "專案教師"]]);
+      });
+
+      el.tplBookBtn.addEventListener("click", () => {
+        downloadCSV("書籍清冊模板.csv", [["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"], ["00000023", "HOW BIG IS BIG多大才是大(附CD)", "Harriet Ziefert", "9570339039", "01", "", "805.188/H297/c.2", "圖書館", "805.188", "BE06"]]);
+      });
+
+      el.tplLoanBtn.addEventListener("click", () => {
+        downloadCSV("借閱紀錄模板.csv", [["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"], ["114001", "一年1班", "1", "王小明", "HOW BIG IS BIG多大才是大(附CD)", "9570339039", "00000023", "115-03-09", "115-04-08", "", "學生"]]);
+      });
+    }
+
+    async function queryUserByCurrentInput() {
+      const s = normalizeDigits(el.userIdInput.value);
+      if (!/^\d{4}$|^\d{6}$/.test(s)) { clearPersonView(); return; }
+      await refreshPersonBorrowList(s.length === 6 ? normalizeStudentId(s) : normalizeStaffId(s));
+    }
+
+    async function queryBookByCurrentInput() {
+      const s = normalizeDigits(el.bookIdInput.value);
+      if (!s) { el.bookTitleField.textContent = "-"; el.bookStatusField.textContent = "-"; return; }
+      const book = await storeGet(STORE.books, s);
+      el.bookTitleField.textContent = book ? (book.title || "") : "查無此書";
+      const active = await getActiveLoanByBookId(s);
+      el.bookStatusField.textContent = active ? `已借出（${active.name} / ${active.uniqueId}）` : "在庫（可借閱）";
+    }
+
+    function renderCatalogResults(rows, hintText = "") {
+      if (!el.catalogSearchBody) return;
+      if (!rows.length) {
+        el.catalogSearchBody.innerHTML = "<tr><td colspan='8'>查無符合資料。</td></tr>";
+        if (hintText) message(hintText, true);
+        return;
+      }
+
+      el.catalogSearchBody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${escapeHtml(r.bookId || "")}</td>
+          <td title="${escapeHtmlAttr(r.title || "")}">${escapeHtml(r.title || "")}</td>
+          <td>${escapeHtml(r.author || "")}</td>
+          <td>${escapeHtml(r.isbn || "")}</td>
+          <td>${escapeHtml(r.callNo || "")}</td>
+          <td>${escapeHtml(r.location || "")}</td>
+          <td>${escapeHtml(r.categoryNo || "")}</td>
+          <td>${escapeHtml(r.shelfNo || "")}</td>
+        </tr>
+      `).join("");
+      message(`查書完成，共 ${rows.length} 筆。`);
+    }
+
+    async function searchCatalogById() {
+      const raw = normalizeDigits(el.catalogIdSearchInput.value);
+      if (!raw) {
+        renderCatalogResults([], "請輸入登錄號。");
+        return;
+      }
+      const books = await storeGetAll(STORE.books);
+      if (!books.length) {
+        renderCatalogResults([], "目前書籍清冊尚無資料，請先到後台匯入。");
+        return;
+      }
+
+      let matches = books.filter(b => String(b.bookId || "") === raw);
+      if (!matches.length) {
+        matches = books.filter(b => String(b.bookId || "").includes(raw));
+      }
+      renderCatalogResults(matches);
+    }
+
+    async function searchCatalogByKeyword() {
+      const keyword = String(el.catalogKeywordSearchInput.value || "").trim().toLowerCase();
+      if (!keyword) {
+        renderCatalogResults([], "請輸入書名關鍵字。");
+        return;
+      }
+      const books = await storeGetAll(STORE.books);
+      if (!books.length) {
+        renderCatalogResults([], "目前書籍清冊尚無資料，請先到後台匯入。");
+        return;
+      }
+      const matches = books.filter(b => String(b.title || "").toLowerCase().includes(keyword));
+      renderCatalogResults(matches);
+    }
+
+    function installEvents() {
+      el.frontTabBorrowBtn.addEventListener("click", () => setFrontTab("borrow"));
+      el.frontTabSearchBtn.addEventListener("click", () => setFrontTab("search"));
+
+      el.adminTabManageBtn.addEventListener("click", () => setAdminTab("manage"));
+      el.adminTabHistoryBtn.addEventListener("click", () => setAdminTab("history"));
+
+      el.queryUserBtn.addEventListener("click", queryUser);
+      el.queryBookBtn.addEventListener("click", queryBook);
+      el.borrowBtn.addEventListener("click", () => activateWorkflow("borrow"));
+      el.returnBtn.addEventListener("click", () => activateWorkflow("return"));
+      el.quickExportLoanBtn.addEventListener("click", async () => { try { await exportLoans(); } catch (e) { message(e.message || String(e), true); } });
+      el.catalogSearchByIdBtn.addEventListener("click", async () => { try { await searchCatalogById(); } catch (e) { message(e.message || String(e), true); } });
+      el.catalogSearchByKeywordBtn.addEventListener("click", async () => { try { await searchCatalogByKeyword(); } catch (e) { message(e.message || String(e), true); } });
+
+      el.importStudentBtn.addEventListener("click", async () => { try { await importStudents(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.exportStudentBtn.addEventListener("click", async () => { try { await exportStudents(); } catch (e) { message(e.message || String(e), true); } });
+      el.importStaffBtn.addEventListener("click", async () => { try { await importStaff(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.exportStaffBtn.addEventListener("click", async () => { try { await exportStaff(); } catch (e) { message(e.message || String(e), true); } });
+      el.importBookBtn.addEventListener("click", async () => { try { await importBooks(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.exportBookBtn.addEventListener("click", async () => { try { await exportBooks(); } catch (e) { message(e.message || String(e), true); } });
+      el.importLoanBtn.addEventListener("click", async () => { try { await importLoansOverwrite(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.exportLoanBtn.addEventListener("click", async () => { try { await exportLoans(); } catch (e) { message(e.message || String(e), true); } });
+      el.exportGradeBtn.addEventListener("click", async () => { try { await exportGradeReports(); } catch (e) { message(e.message || String(e), true); } });
+      el.importLegacyStudentLoanBtn.addEventListener("click", async () => { try { await importLegacyStudentLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.importLegacyStaffLoanBtn.addEventListener("click", async () => { try { await importLegacyStaffLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      el.historyBorrowHeader.addEventListener("click", () => toggleHistorySort("borrowAtISO"));
+      el.historyReturnHeader.addEventListener("click", () => toggleHistorySort("returnAtISO"));
+      el.historyPrevBtn.addEventListener("click", () => { historyPage = Math.max(1, historyPage - 1); renderHistoryPage(); });
+      el.historyNextBtn.addEventListener("click", () => { historyPage += 1; renderHistoryPage(); });
+      el.historyManageBody.addEventListener("click", handleHistoryActionClick);
+
+      el.userIdInput.addEventListener("keydown", async (e) => { if (e.key === "Enter") await queryUser(); });
+      el.catalogIdSearchInput.addEventListener("keydown", async (e) => { if (e.key === "Enter") await searchCatalogById(); });
+      el.catalogKeywordSearchInput.addEventListener("keydown", async (e) => { if (e.key === "Enter") await searchCatalogByKeyword(); });
+      el.bookIdInput.addEventListener("input", () => {
+        if (!activeWorkflow) return;
+        touchWorkflowTimeout();
+        scheduleAutoProcess();
+      });
+      el.bookIdInput.addEventListener("keydown", async (e) => {
+        if (e.key !== "Enter") return;
+        if (!activeWorkflow) {
+          await queryBook();
+          return;
+        }
+        e.preventDefault();
+        touchWorkflowTimeout();
+        await processActiveWorkflow();
+      });
+    }
+
+    async function boot() {
+      try {
+        db = await openDB();
+        if (isAdminMode) {
+          activeAdminTab = "history";
+          applyHistoryDefaultSortFromLastAction();
+        }
+        applyPageMode();
+        await checkStorageRiskAndNotify();
+        updateWorkflowButtons();
+        el.todayRoc.textContent = toRocDate(nowDate());
+        installEvents();
+        installTemplateButtons();
+        await refreshMasterStoreStatus();
+        await refreshHistoryTable(true);
+        if (!isAdminMode) {
+          await queryUserByCurrentInput();
+          await queryBookByCurrentInput();
+        }
+        if (isAdminMode) {
+          message("後台已就緒，可進行名冊與紀錄管理。");
+        } else {
+          message("");
+        }
+      } catch (err) {
+        message(`啟動失敗：${err.message || err}`, true);
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
