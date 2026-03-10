@@ -491,7 +491,7 @@
         <p><b>教職員名冊 CSV</b>：<span class="mono">身分證末四碼,姓名,處室,職務</span></p>
         <p><b>書籍清冊（CSV/XLS/XLSX）</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span>（可自動略過前置資訊列，抓取標題列）</p>
         <p>請將全誼系統匯出之書庫資料以模板格式匯出，方能正確匯入。</p>
-        <p><b>借閱紀錄 CSV</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別</span></p>
+        <p><b>借閱紀錄 CSV</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別,資料更新</span>（舊檔無資料更新欄位也可匯入）</p>
         <p>借閱規則：學生 5 本上限、教職員 10 本上限、借期 30 天，所有身分當日借不可當日還。</p>
         <div class="btn-row">
           <button id="tplStudentBtn" class="warn">下載學生模板</button>
@@ -1489,6 +1489,28 @@
       return d;
     }
 
+    function parseFlexibleTimestampToISO(raw) {
+      const s = String(raw || "").trim();
+      if (!s) return "";
+
+      const direct = new Date(s);
+      if (!Number.isNaN(direct.getTime())) return direct.toISOString();
+
+      const m = s.match(/^(\d{2,4})[-\/](\d{1,2})[-\/](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+      if (!m) return "";
+      let year = Number(m[1]);
+      if (!Number.isFinite(year)) return "";
+      if (year < 1911) year += 1911;
+      const month = Number(m[2]);
+      const day = Number(m[3]);
+      const hour = Number(m[4] || "0");
+      const minute = Number(m[5] || "0");
+      const second = Number(m[6] || "0");
+      const d = new Date(year, month - 1, day, hour, minute, second);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toISOString();
+    }
+
     async function importLegacyStudentLoans() {
       const text = await readFileText(el.legacyStudentLoanInput);
       const rows = parseCSV(text);
@@ -1796,8 +1818,15 @@
       const rows = parseCSV(text);
       if (!rows.length) throw new Error("借閱紀錄檔案沒有資料。");
 
-      const expectedHeader = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"];
-      assertExactHeader(rows[0], expectedHeader, "借閱紀錄 CSV");
+      const baseHeader = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"];
+      const headerWithUpdate = [...baseHeader, "資料更新"];
+      const actualHeader = normalizeHeaderCells(rows[0]);
+      const isOldHeader = actualHeader.length === baseHeader.length && baseHeader.every((v, i) => actualHeader[i] === v);
+      const isNewHeader = actualHeader.length === headerWithUpdate.length && headerWithUpdate.every((v, i) => actualHeader[i] === v);
+      if (!isOldHeader && !isNewHeader) {
+        throw new Error(`借閱紀錄 CSV格式不符合。標題欄必須為：${baseHeader.join(",")} 或 ${headerWithUpdate.join(",")}`);
+      }
+      const hasUpdatedAt = isNewHeader;
 
       const result = [];
       for (let i = 1; i < rows.length; i++) {
@@ -1827,7 +1856,7 @@
           borrowDateROC: r[7] || toRocDate(borrowDate),
           dueDateROC: r[8] || toRocDate(dueDate),
           returnDateROC: returnDate ? (r[9] || toRocDate(returnDate)) : "",
-          updatedAtISO: nowTimestampISO()
+          updatedAtISO: (hasUpdatedAt ? parseFlexibleTimestampToISO(r[11]) : "") || nowTimestampISO()
         });
       }
 
@@ -1898,8 +1927,8 @@
     async function exportLoans() {
       const rows = await storeGetAll(STORE.loans);
       rows.sort((a, b) => (a.borrowAtISO === b.borrowAtISO ? (a.recordId || 0) - (b.recordId || 0) : a.borrowAtISO > b.borrowAtISO ? 1 : -1));
-      const header = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"];
-      downloadCSV(`借閱紀錄_${ts()}.csv`, [header, ...rows.map(r => [r.uniqueId || "", r.deptClass || "", r.jobSeat || "", r.name || "", r.bookTitle || "", r.isbn || "", r.bookId || "", r.borrowDateROC || "", r.dueDateROC || "", r.returnDateROC || "", r.personType === "Student" ? "學生" : "教職員"]) ]);
+      const header = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別", "資料更新"];
+      downloadCSV(`借閱紀錄_${ts()}.csv`, [header, ...rows.map(r => [r.uniqueId || "", r.deptClass || "", r.jobSeat || "", r.name || "", r.bookTitle || "", r.isbn || "", r.bookId || "", r.borrowDateROC || "", r.dueDateROC || "", r.returnDateROC || "", r.personType === "Student" ? "學生" : "教職員", r.updatedAtISO || ""]) ]);
       message(`已匯出借閱紀錄 ${rows.length} 筆。`);
     }
     function detectGrade(className) {
@@ -1980,7 +2009,7 @@
       });
 
       el.tplLoanBtn.addEventListener("click", () => {
-        downloadCSV("借閱紀錄模板.csv", [["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"], ["114001", "一年1班", "1", "王小明", "HOW BIG IS BIG多大才是大(附CD)", "9570339039", "00000023", "115-03-09", "115-04-08", "", "學生"]]);
+        downloadCSV("借閱紀錄模板.csv", [["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別", "資料更新"], ["114001", "一年1班", "1", "王小明", "HOW BIG IS BIG多大才是大(附CD)", "9570339039", "00000023", "115-03-09", "115-04-08", "", "學生", "2026-03-10T08:30:15.000Z"]]);
       });
     }
 
