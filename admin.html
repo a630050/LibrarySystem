@@ -411,6 +411,7 @@
             <div class="status-grid">
               <div class="status-item"><b>姓名</b><span id="nameField">-</span></div>
               <div class="status-item"><b>身分</b><span id="typeField">-</span></div>
+              <div class="status-item" style="grid-column: span 2;"><b>班級/座號 或 處室/職務</b><span id="detailField">-</span></div>
               <div class="status-item"><b>書名</b><span id="bookTitleField">-</span></div>
               <div class="status-item"><b>目前未歸還</b><span id="borrowCountField">0</span></div>
               <div class="status-item" style="grid-column: span 2;"><b>書籍狀態</b><span id="bookStatusField">-</span></div>
@@ -573,7 +574,7 @@
     <h3 class="section-title admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="history">借閱紀錄管理</h3>
     <section class="panel admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="history">
       <div class="panel-body">
-        <div class="small">顯示全部紀錄，依借出時間由新到舊排序，每頁 50 筆。點擊【借出時間】或【歸還時間】可以切換排序</div>
+        <div class="small">顯示全部紀錄，預設依資料更新時間由新到舊排序，每頁 50 筆。點擊【借出時間】或【歸還時間】可以切換排序</div>
         <div class="pagination">
           <button id="historyPrevBtn" class="secondary pager-btn">上一頁</button>
           <button id="historyNextBtn" class="secondary pager-btn">下一頁</button>
@@ -594,11 +595,12 @@
               <col style="width: 9%;">
               <col style="width: 9%;">
               <col style="width: 5%;">
-              <col style="width: 17%;">
+              <col style="width: 10%;">
+              <col style="width: 12%;">
             </colgroup>
             <thead>
               <tr>
-                <th>唯一識別碼</th><th>處室/班級</th><th>職務/座號</th><th>姓名</th><th>書名</th><th>ISBN</th><th>登錄號</th><th id="historyBorrowHeader" class="sortable-header">借出時間</th><th>應還時間</th><th id="historyReturnHeader" class="sortable-header">還書時間</th><th>身分別</th><th>操作</th>
+                <th>唯一識別碼</th><th>處室/班級</th><th>職務/座號</th><th>姓名</th><th>書名</th><th>ISBN</th><th>登錄號</th><th id="historyBorrowHeader" class="sortable-header">借出時間</th><th>應還時間</th><th id="historyReturnHeader" class="sortable-header">還書時間</th><th>身分別</th><th>資料更新</th><th>操作</th>
               </tr>
             </thead>
             <tbody id="historyManageBody"></tbody>
@@ -639,14 +641,14 @@
     let isAutoProcessing = false;
     let activeAdminTab = "history";
     let activeFrontTab = "borrow";
-    let historySortField = "borrowAtISO";
+    let historySortField = "updatedAtISO";
     let historySortDir = "desc";
 
     const el = {
       todayRoc: document.getElementById("todayRoc"), userIdInput: document.getElementById("userIdInput"), bookIdInput: document.getElementById("bookIdInput"),
       queryUserBtn: document.getElementById("queryUserBtn"), queryBookBtn: document.getElementById("queryBookBtn"), borrowBtn: document.getElementById("borrowBtn"), returnBtn: document.getElementById("returnBtn"),
       quickExportLoanBtn: document.getElementById("quickExportLoanBtn"),
-      nameField: document.getElementById("nameField"), typeField: document.getElementById("typeField"), bookTitleField: document.getElementById("bookTitleField"), borrowCountField: document.getElementById("borrowCountField"), bookStatusField: document.getElementById("bookStatusField"),
+      nameField: document.getElementById("nameField"), detailField: document.getElementById("detailField"), typeField: document.getElementById("typeField"), bookTitleField: document.getElementById("bookTitleField"), borrowCountField: document.getElementById("borrowCountField"), bookStatusField: document.getElementById("bookStatusField"),
       activeBorrowBody: document.getElementById("activeBorrowBody"),
       historyManageBody: document.getElementById("historyManageBody"),
       historyPrevBtn: document.getElementById("historyPrevBtn"),
@@ -866,6 +868,14 @@
     function nowDate() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
     function toISODateOnly(dateObj) { return `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`; }
     function toRocDate(dateObj) { return `${dateObj.getFullYear() - 1911}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}`; }
+    function toRocDateTime(dateObj) { return `${dateObj.getFullYear() - 1911}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())} ${pad2(dateObj.getHours())}:${pad2(dateObj.getMinutes())}:${pad2(dateObj.getSeconds())}`; }
+    function nowTimestampISO() { return new Date().toISOString(); }
+    function formatUpdateStamp(isoText) {
+      if (!isoText) return "";
+      const d = new Date(isoText);
+      if (Number.isNaN(d.getTime())) return "";
+      return toRocDateTime(d);
+    }
     function addDays(dateObj, days) { const d = new Date(dateObj); d.setDate(d.getDate() + days); return d; }
     function ts() { const d = new Date(); return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`; }
     function normalizeDigits(raw) { return String(raw || "").trim().replace(/\s+/g, ""); }
@@ -955,6 +965,7 @@
 
     function clearPersonView() {
       el.nameField.textContent = "-";
+      el.detailField.textContent = "-";
       el.typeField.textContent = "-";
       el.borrowCountField.textContent = "0";
       el.activeBorrowBody.innerHTML = "";
@@ -979,19 +990,8 @@
     }
 
     function applyHistoryDefaultSortFromLastAction() {
-      let action = "";
-      try {
-        action = localStorage.getItem(LAST_FRONT_ACTION_KEY) || "";
-      } catch (_) {
-        action = "";
-      }
-      if (action === "return") {
-        historySortField = "returnAtISO";
-        historySortDir = "desc";
-      } else {
-        historySortField = "borrowAtISO";
-        historySortDir = "desc";
-      }
+      historySortField = "updatedAtISO";
+      historySortDir = "desc";
     }
 
     async function refreshMasterStoreStatus() {
@@ -1021,8 +1021,14 @@
       if (aEmpty) return 1;
       if (bEmpty) return -1;
       if (av === bv) return 0;
-      if (dir === "desc") return av < bv ? 1 : -1;
-      return av > bv ? 1 : -1;
+      const aNum = Number(av);
+      const bNum = Number(bv);
+      if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+        if (dir === "desc") return aNum < bNum ? 1 : -1;
+        return aNum > bNum ? 1 : -1;
+      }
+      if (dir === "desc") return String(av) < String(bv) ? 1 : -1;
+      return String(av) > String(bv) ? 1 : -1;
     }
 
     function sortHistoryRows() {
@@ -1061,6 +1067,11 @@
       const active = await getActiveLoansByUser(uniqueId);
       el.nameField.textContent = person.name || "(無姓名)";
       el.typeField.textContent = person.type === "Student" ? "學生" : "教職員";
+      if (person.type === "Student") {
+        el.detailField.textContent = `班級：${person.deptClass || "-"} / 座號：${person.jobSeat || "-"}`;
+      } else {
+        el.detailField.textContent = `處室：${person.deptClass || "-"} / 職務：${person.jobSeat || "-"}`;
+      }
       el.borrowCountField.textContent = String(active.length);
 
       if (!active.length) {
@@ -1078,7 +1089,7 @@
       historyPage = Math.min(Math.max(1, historyPage), totalPages);
 
       if (!total) {
-        el.historyManageBody.innerHTML = "<tr><td colspan='12'>尚無借閱紀錄</td></tr>";
+        el.historyManageBody.innerHTML = "<tr><td colspan='13'>尚無借閱紀錄</td></tr>";
         if (el.historyPageInfo) el.historyPageInfo.textContent = "第 1 / 1 頁";
         if (el.historyCountInfo) el.historyCountInfo.textContent = "共 0 筆";
         if (el.historyPrevBtn) el.historyPrevBtn.disabled = true;
@@ -1109,6 +1120,7 @@
           <td>${escapeHtml(r.dueDateROC || "")}</td>
           <td>${escapeHtml(r.returnDateROC || "")}</td>
           <td>${r.personType === "Student" ? "學生" : "教職員"}</td>
+          <td>${escapeHtml(formatUpdateStamp(r.updatedAtISO || ""))}</td>
           <td>${actionButtons}</td>
         </tr>`;
       }).join("");
@@ -1148,7 +1160,7 @@
         throw new Error("無法只刪除歸還：此書已有其他未歸還紀錄，請改用刪除整筆。");
       }
 
-      const updated = { ...row, returnAtISO: "", returnDateROC: "" };
+      const updated = { ...row, returnAtISO: "", returnDateROC: "", updatedAtISO: nowTimestampISO() };
       await storePut(STORE.loans, updated);
     }
 
@@ -1240,7 +1252,8 @@
         uniqueId, personType: person.type, deptClass: person.deptClass || "", jobSeat: person.jobSeat || "", name: person.name || "",
         bookTitle, isbn, bookId,
         borrowAtISO: toISODateOnly(bDate), dueAtISO: toISODateOnly(due), returnAtISO: "",
-        borrowDateROC: toRocDate(bDate), dueDateROC: toRocDate(due), returnDateROC: ""
+        borrowDateROC: toRocDate(bDate), dueDateROC: toRocDate(due), returnDateROC: "",
+        updatedAtISO: nowTimestampISO()
       });
 
       el.bookIdInput.value = "";
@@ -1264,11 +1277,12 @@
         throw new Error("歸還失敗：當日借不可當日還。");
       }
 
-      const updated = { ...active, returnAtISO: toISODateOnly(today), returnDateROC: toRocDate(today) };
+      const updated = { ...active, returnAtISO: toISODateOnly(today), returnDateROC: toRocDate(today), updatedAtISO: nowTimestampISO() };
       await storePut(STORE.loans, updated);
 
       el.userIdInput.value = active.uniqueId;
       el.bookIdInput.value = "";
+      el.bookTitleField.textContent = active.bookTitle || "-";
       el.nameField.textContent = active.name || "-";
       el.typeField.textContent = active.personType === "Student" ? "學生" : "教職員";
       el.bookStatusField.textContent = "在庫（可借閱）";
@@ -1545,7 +1559,8 @@
             returnAtISO: "",
             borrowDateROC: toRocDate(opDate),
             dueDateROC: toRocDate(due),
-            returnDateROC: ""
+            returnDateROC: "",
+            updatedAtISO: nowTimestampISO()
           };
           newRows.push(loan);
           if (!openByKey.has(key)) openByKey.set(key, []);
@@ -1559,6 +1574,7 @@
             const target = openList[openList.length - 1];
             target.returnAtISO = toISODateOnly(opDate);
             target.returnDateROC = toRocDate(opDate);
+            target.updatedAtISO = nowTimestampISO();
             openList.pop();
             returnApplied++;
           } else {
@@ -1654,7 +1670,8 @@
           returnAtISO: returnDate ? toISODateOnly(returnDate) : "",
           borrowDateROC: toRocDate(borrowDate),
           dueDateROC: toRocDate(dueDate),
-          returnDateROC: returnDate ? toRocDate(returnDate) : ""
+          returnDateROC: returnDate ? toRocDate(returnDate) : "",
+          updatedAtISO: nowTimestampISO()
         });
       }
 
@@ -1809,7 +1826,8 @@
           returnAtISO: returnDate ? toISODateOnly(returnDate) : "",
           borrowDateROC: r[7] || toRocDate(borrowDate),
           dueDateROC: r[8] || toRocDate(dueDate),
-          returnDateROC: returnDate ? (r[9] || toRocDate(returnDate)) : ""
+          returnDateROC: returnDate ? (r[9] || toRocDate(returnDate)) : "",
+          updatedAtISO: nowTimestampISO()
         });
       }
 
