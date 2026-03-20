@@ -878,7 +878,18 @@
     }
     function addDays(dateObj, days) { const d = new Date(dateObj); d.setDate(d.getDate() + days); return d; }
     function ts() { const d = new Date(); return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`; }
-    function normalizeDigits(raw) { return String(raw || "").trim().replace(/\s+/g, ""); }
+    function normalizeCellText(raw) {
+      return String(raw ?? "")
+        .replace(/^\uFEFF/, "")
+        .trim()
+        .replace(/^['’]+/, "");
+    }
+    function normalizeDigits(raw) { return normalizeCellText(raw).replace(/\s+/g, ""); }
+    function excelQuotedText(raw) {
+      const s = normalizeCellText(raw);
+      if (!s) return "";
+      return s.startsWith("'") ? s : "'" + s;
+    }
     function normalizeStudentId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(6, "0"); }
     function normalizeStaffId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(4, "0"); }
     function inferPersonType(uniqueId) { if (/^\d{6}$/.test(uniqueId)) return "Student"; if (/^\d{4}$/.test(uniqueId)) return "Staff"; return ""; }
@@ -1789,7 +1800,7 @@
           bookId,
           title: r[col.title] || "",
           author: r[col.author] || "",
-          isbn: r[col.isbn] || "",
+          isbn: normalizeCellText(r[col.isbn]),
           binding: r[col.binding] || "",
           specialNo: r[col.specialNo] || "",
           callNo: r[col.callNo] || "",
@@ -1920,7 +1931,7 @@
       const rows = await storeGetAll(STORE.books);
       rows.sort((a, b) => a.bookId.localeCompare(b.bookId));
       const header = ["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"];
-      downloadCSV(`書籍清冊_${ts()}.csv`, [header, ...rows.map(r => [r.bookId || "", r.title || "", r.author || "", r.isbn || "", r.binding || "", r.specialNo || "", r.callNo || "", r.location || "", r.categoryNo || "", r.shelfNo || ""]) ]);
+      downloadCSV(`書籍清冊_${ts()}.csv`, [header, ...rows.map(r => [excelQuotedText(r.bookId), r.title || "", r.author || "", excelQuotedText(r.isbn), r.binding || "", r.specialNo || "", r.callNo || "", r.location || "", r.categoryNo || "", r.shelfNo || ""]) ]);
       message(`已匯出書籍清冊 ${rows.length} 筆。`);
     }
 
