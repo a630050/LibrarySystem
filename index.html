@@ -917,6 +917,12 @@
         .replace(/^['’]+/, "");
     }
     function normalizeDigits(raw) { return normalizeCellText(raw).replace(/\s+/g, ""); }
+    function normalizeBookId(raw) {
+      const s = normalizeDigits(raw);
+      if (!s) return "";
+      if (/^\d+$/.test(s) && s.length <= 8) return s.padStart(8, "0");
+      return s;
+    }
     function normalizeStudentId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(6, "0"); }
     function normalizeStaffId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(4, "0"); }
     function inferPersonType(uniqueId) { if (/^\d{6}$/.test(uniqueId)) return "Student"; if (/^\d{4}$/.test(uniqueId)) return "Staff"; return ""; }
@@ -985,11 +991,22 @@
 
     async function getAllLoans() { return storeGetAll(STORE.loans); }
 
+    async function getBookByIdSmart(bookId) {
+      const normalized = normalizeBookId(bookId);
+      if (!normalized) return null;
+      const direct = await storeGet(STORE.books, normalized);
+      if (direct) return direct;
+      const books = await storeGetAll(STORE.books);
+      return books.find(b => normalizeBookId(b.bookId) === normalized) || null;
+    }
+
     async function getActiveLoanByBookId(bookId) {
+      const targetId = normalizeBookId(bookId);
+      if (!targetId) return null;
       const loans = await getAllLoans();
       let result = null;
       for (const row of loans) {
-        if (String(row.bookId) === String(bookId) && !row.returnAtISO) {
+        if (normalizeBookId(row.bookId) === targetId && !row.returnAtISO) {
           if (!result || row.recordId > result.recordId) result = row;
         }
       }
@@ -1297,9 +1314,10 @@
     }
 
     async function queryBook() {
-      const bookId = normalizeDigits(el.bookIdInput.value);
+      const bookId = normalizeBookId(el.bookIdInput.value);
       if (!bookId) { message("請輸入書籍登錄號。", true); return; }
-      const book = await storeGet(STORE.books, bookId);
+      el.bookIdInput.value = bookId;
+      const book = await getBookByIdSmart(bookId);
       el.bookTitleField.textContent = book ? (book.title || "") : "查無此書";
       const activeLoan = await getActiveLoanByBookId(bookId);
       el.bookStatusField.textContent = activeLoan ? `已借出（${activeLoan.name} / ${activeLoan.uniqueId}）` : "在庫（可借閱）";
@@ -1312,10 +1330,11 @@
 
     async function processBorrowOnce() {
       const rawId = normalizeDigits(el.userIdInput.value);
-      const bookId = normalizeDigits(el.bookIdInput.value);
+      const bookId = normalizeBookId(el.bookIdInput.value);
 
       if (!/^\d{4}$|^\d{6}$/.test(rawId)) throw new Error("借入失敗：請先輸入正確識別碼（學生 6 碼 / 教職員 4 碼）。");
       if (!bookId) throw new Error("借入失敗：請輸入書籍登錄號。");
+      el.bookIdInput.value = bookId;
 
       const uniqueId = rawId.length === 6 ? normalizeStudentId(rawId) : normalizeStaffId(rawId);
       el.userIdInput.value = uniqueId;
@@ -1332,7 +1351,7 @@
         throw new Error(`借入失敗：${person.name} 已達借閱上限 ${limit} 本。`);
       }
 
-      const book = await storeGet(STORE.books, bookId);
+      const book = await getBookByIdSmart(bookId);
       if (!book) throw new Error("借入失敗：書籍清冊查無此登錄號。");
       const bookTitle = book.title || "未知書名";
       const isbn = book.isbn || "";
@@ -1357,8 +1376,9 @@
     }
 
     async function processReturnOnce() {
-      const bookId = normalizeDigits(el.bookIdInput.value);
+      const bookId = normalizeBookId(el.bookIdInput.value);
       if (!bookId) throw new Error("歸還失敗：請輸入書籍登錄號。");
+      el.bookIdInput.value = bookId;
 
       const active = await getActiveLoanByBookId(bookId);
       if (!active) throw new Error("歸還失敗：查無未歸還借閱紀錄。");
@@ -1385,7 +1405,7 @@
 
     async function processActiveWorkflow() {
       if (!activeWorkflow || isAutoProcessing) return;
-      const bookId = normalizeDigits(el.bookIdInput.value);
+      const bookId = normalizeBookId(el.bookIdInput.value);
       if (!bookId) return;
 
       isAutoProcessing = true;
@@ -1639,7 +1659,7 @@
       const students = await storeGetAll(STORE.students);
       const books = await storeGetAll(STORE.books);
       const studentMap = new Map(students.map(s => [s.id, s]));
-      const bookMap = new Map(books.map(b => [b.bookId, b]));
+      const bookMap = new Map(books.map(b => [normalizeBookId(b.bookId), b]));
       const events = [];
 
       let skippedNoStudent = 0;
@@ -1653,7 +1673,7 @@
         const r = rows[i];
         const opDate = parseFlexibleDate(r[0]);
         const sid = normalizeStudentId(r[1]);
-        const bookId = normalizeDigits(r[2]);
+        const bookId = normalizeBookId(r[2]);
         const titleRaw = r[3] || "";
         const status = String(r[5] || "").trim();
 
@@ -1746,7 +1766,7 @@
 
       const staffs = await storeGetAll(STORE.staff);
       const books = await storeGetAll(STORE.books);
-      const bookMap = new Map(books.map(b => [b.bookId, b]));
+      const bookMap = new Map(books.map(b => [normalizeBookId(b.bookId), b]));
 
       const staffByName = new Map();
       const staffByComposite = new Map();
@@ -1773,7 +1793,7 @@
         const name = r[2] || "";
         const bookTitle = r[3] || "";
         const isbnRaw = r[4] || "";
-        const bookId = normalizeDigits(r[5]);
+        const bookId = normalizeBookId(r[5]);
         const borrowDate = parseFlexibleDate(r[6]);
         const dueDate = parseFlexibleDate(r[7]) || (borrowDate ? addDays(borrowDate, RULE.loanDays) : null);
         const returnDate = parseFlexibleDate(r[8]);
@@ -1898,7 +1918,7 @@
       for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const r = rows[i];
         if (!r || !r.some(cell => String(cell || "").trim() !== "")) continue;
-        const bookId = normalizeDigits(r[col.bookId]);
+        const bookId = normalizeBookId(r[col.bookId]);
         if (!bookId) continue;
         resultMap.set(bookId, {
           bookId,
@@ -1963,7 +1983,7 @@
           name: r[3] || "",
           bookTitle: r[4] || "",
           isbn: r[5] || "",
-          bookId: normalizeDigits(r[6]),
+          bookId: normalizeBookId(r[6]),
           borrowAtISO: toISODateOnly(borrowDate),
           dueAtISO: toISODateOnly(dueDate),
           returnAtISO: returnDate ? toISODateOnly(returnDate) : "",
@@ -2487,9 +2507,9 @@
     }
 
     async function queryBookByCurrentInput() {
-      const s = normalizeDigits(el.bookIdInput.value);
+      const s = normalizeBookId(el.bookIdInput.value);
       if (!s) { el.bookTitleField.textContent = "-"; el.bookStatusField.textContent = "-"; return; }
-      const book = await storeGet(STORE.books, s);
+      const book = await getBookByIdSmart(s);
       el.bookTitleField.textContent = book ? (book.title || "") : "查無此書";
       const active = await getActiveLoanByBookId(s);
       el.bookStatusField.textContent = active ? `已借出（${active.name} / ${active.uniqueId}）` : "在庫（可借閱）";
@@ -2520,6 +2540,7 @@
 
     async function searchCatalogById() {
       const raw = normalizeDigits(el.catalogIdSearchInput.value);
+      const normalized = normalizeBookId(raw);
       if (!raw) {
         renderCatalogResults([], "請輸入登錄號。");
         return;
@@ -2530,9 +2551,12 @@
         return;
       }
 
-      let matches = books.filter(b => String(b.bookId || "") === raw);
+      let matches = books.filter(b => normalizeBookId(b.bookId) === normalized);
       if (!matches.length) {
-        matches = books.filter(b => String(b.bookId || "").includes(raw));
+        matches = books.filter(b => {
+          const bid = normalizeBookId(b.bookId);
+          return bid.includes(raw) || bid.includes(normalized);
+        });
       }
       renderCatalogResults(matches);
     }
