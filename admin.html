@@ -267,6 +267,25 @@
       margin-top: 8px;
       flex-wrap: wrap;
     }
+    .history-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .history-filter-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    #historyFilterInput {
+      width: 230px;
+      max-width: 100%;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
     .pager-btn {
       padding: 5px 10px;
       font-size: 13px;
@@ -374,6 +393,7 @@
       .row { grid-template-columns: 1fr; gap: 4px; }
       table { min-width: 620px; }
       .admin-history-table { min-width: 0; }
+      #historyFilterInput { width: 100%; }
     }
   </style>
 </head>
@@ -574,7 +594,13 @@
     <h3 class="section-title admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="history">借閱紀錄管理</h3>
     <section class="panel admin-only admin-tab-panel" data-admin-display="block" data-tab-panel="history">
       <div class="panel-body">
-        <div class="small">顯示全部紀錄，預設依資料更新時間由新到舊排序，每頁 50 筆。點擊【借出時間】或【歸還時間】可以切換排序</div>
+        <div class="history-topbar">
+          <div class="small">顯示全部紀錄，預設依資料更新時間由新到舊排序，每頁 50 筆。點擊【借出時間】或【歸還時間】可以切換排序</div>
+          <div class="history-filter-wrap">
+            <input id="historyFilterInput" type="text" placeholder="輸入姓名或書名關鍵字" />
+            <button id="historyFilterBtn" class="secondary pager-btn">篩選</button>
+          </div>
+        </div>
         <div class="pagination">
           <button id="historyPrevBtn" class="secondary pager-btn">上一頁</button>
           <button id="historyNextBtn" class="secondary pager-btn">下一頁</button>
@@ -635,7 +661,9 @@
 
     let db;
     let historyPage = 1;
+    let historyAllRowsCache = [];
     let historyRowsCache = [];
+    let historyFilterKeyword = "";
     let activeWorkflow = null;
     let workflowTimeoutHandle = null;
     let scanDebounceHandle = null;
@@ -652,6 +680,8 @@
       nameField: document.getElementById("nameField"), detailField: document.getElementById("detailField"), typeField: document.getElementById("typeField"), bookTitleField: document.getElementById("bookTitleField"), borrowCountField: document.getElementById("borrowCountField"), bookStatusField: document.getElementById("bookStatusField"),
       activeBorrowBody: document.getElementById("activeBorrowBody"),
       historyManageBody: document.getElementById("historyManageBody"),
+      historyFilterInput: document.getElementById("historyFilterInput"),
+      historyFilterBtn: document.getElementById("historyFilterBtn"),
       historyPrevBtn: document.getElementById("historyPrevBtn"),
       historyNextBtn: document.getElementById("historyNextBtn"),
       historyPageInfo: document.getElementById("historyPageInfo"),
@@ -1067,6 +1097,51 @@
       renderHistoryPage();
     }
 
+    function updateHistoryFilterButton() {
+      if (!el.historyFilterBtn) return;
+      el.historyFilterBtn.textContent = historyFilterKeyword ? "取消篩選" : "篩選";
+    }
+
+    function applyHistoryFilterRows() {
+      let rows = historyAllRowsCache.slice();
+      const kw = String(historyFilterKeyword || "").trim().toLowerCase();
+      if (kw) {
+        rows = rows.filter(r => {
+          const name = String(r.name || "").toLowerCase();
+          const title = String(r.bookTitle || "").toLowerCase();
+          return name.includes(kw) || title.includes(kw);
+        });
+      }
+      historyRowsCache = rows;
+      sortHistoryRows();
+    }
+
+    function runHistoryFilterToggle() {
+      if (!el.historyFilterInput) return;
+      if (historyFilterKeyword) {
+        historyFilterKeyword = "";
+        el.historyFilterInput.value = "";
+        applyHistoryFilterRows();
+        historyPage = 1;
+        renderHistoryPage();
+        updateHistoryFilterButton();
+        message("已取消篩選。");
+        return;
+      }
+
+      const raw = String(el.historyFilterInput.value || "").trim();
+      if (!raw) {
+        message("請先輸入姓名或書名關鍵字。", true);
+        return;
+      }
+      historyFilterKeyword = raw;
+      applyHistoryFilterRows();
+      historyPage = 1;
+      renderHistoryPage();
+      updateHistoryFilterButton();
+      message(`已套用篩選：「${raw}」。`);
+    }
+
     async function refreshPersonBorrowList(uniqueId) {
       if (!uniqueId) { clearPersonView(); return; }
       const person = await getPersonById(uniqueId);
@@ -1097,9 +1172,12 @@
       historyPage = Math.min(Math.max(1, historyPage), totalPages);
 
       if (!total) {
-        el.historyManageBody.innerHTML = "<tr><td colspan='13'>尚無借閱紀錄</td></tr>";
+        const emptyText = historyFilterKeyword ? "查無符合篩選條件的紀錄" : "尚無借閱紀錄";
+        el.historyManageBody.innerHTML = `<tr><td colspan='13'>${emptyText}</td></tr>`;
         if (el.historyPageInfo) el.historyPageInfo.textContent = "第 1 / 1 頁";
-        if (el.historyCountInfo) el.historyCountInfo.textContent = "共 0 筆";
+        if (el.historyCountInfo) {
+          el.historyCountInfo.textContent = historyFilterKeyword ? "篩選後 0 筆" : "共 0 筆";
+        }
         if (el.historyPrevBtn) el.historyPrevBtn.disabled = true;
         if (el.historyNextBtn) el.historyNextBtn.disabled = true;
         return;
@@ -1134,15 +1212,20 @@
       }).join("");
 
       if (el.historyPageInfo) el.historyPageInfo.textContent = `第 ${historyPage} / ${totalPages} 頁`;
-      if (el.historyCountInfo) el.historyCountInfo.textContent = `共 ${total} 筆`;
+      if (el.historyCountInfo) {
+        el.historyCountInfo.textContent = historyFilterKeyword
+          ? `篩選後 ${total} 筆（原始 ${historyAllRowsCache.length} 筆）`
+          : `共 ${total} 筆`;
+      }
       if (el.historyPrevBtn) el.historyPrevBtn.disabled = historyPage <= 1;
       if (el.historyNextBtn) el.historyNextBtn.disabled = historyPage >= totalPages;
       updateHistorySortHeaders();
     }
 
     async function refreshHistoryTable(resetToFirstPage = false) {
-      historyRowsCache = await getAllLoans();
-      sortHistoryRows();
+      historyAllRowsCache = await getAllLoans();
+      applyHistoryFilterRows();
+      updateHistoryFilterButton();
       if (resetToFirstPage) historyPage = 1;
       renderHistoryPage();
     }
@@ -2506,6 +2589,17 @@
       el.importLegacyStudentLoanBtn.addEventListener("click", async () => { try { await importLegacyStudentLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
       el.importLegacyStaffLoanBtn.addEventListener("click", async () => { try { await importLegacyStaffLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
       el.resetSystemBtn.addEventListener("click", async () => { try { await resetSystemData(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      if (el.historyFilterBtn) {
+        el.historyFilterBtn.addEventListener("click", runHistoryFilterToggle);
+      }
+      if (el.historyFilterInput) {
+        el.historyFilterInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            runHistoryFilterToggle();
+          }
+        });
+      }
       el.historyBorrowHeader.addEventListener("click", () => toggleHistorySort("borrowAtISO"));
       el.historyReturnHeader.addEventListener("click", () => toggleHistorySort("returnAtISO"));
       el.historyPrevBtn.addEventListener("click", () => { historyPage = Math.max(1, historyPage - 1); renderHistoryPage(); });
