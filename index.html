@@ -489,9 +489,9 @@
       <div class="panel-body small">
         <p><b>學生名冊 CSV</b>：<span class="mono">年班,座號,姓名,學號</span></p>
         <p><b>教職員名冊 CSV</b>：<span class="mono">身分證末四碼,姓名,處室,職務</span></p>
-        <p><b>書籍清冊（CSV/XLS/XLSX）</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span>（可自動略過前置資訊列，抓取標題列）</p>
+        <p><b>書籍清冊（建議 XLSX；相容 CSV/XLS）</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span>（可自動略過前置資訊列，抓取標題列）</p>
         <p>請將全誼系統匯出之書庫資料以模板格式匯出，方能正確匯入。</p>
-        <p><b>借閱紀錄 CSV</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別,資料更新</span>（舊檔無資料更新欄位也可匯入）</p>
+        <p><b>借閱紀錄（建議 XLSX；相容 CSV/XLS）</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別,資料更新</span>（舊檔無資料更新欄位也可匯入）</p>
         <p>借閱規則：學生 5 本上限、教職員 10 本上限、借期 30 天，所有身分當日借不可當日還。</p>
         <div class="btn-row">
           <button id="tplStudentBtn" class="warn">下載學生模板</button>
@@ -527,17 +527,17 @@
         <div class="panel-body">
           <div id="bookStoreStatus" class="small">資料狀態：檢查中...</div>
           <input id="bookImportInput" type="file" accept=".csv,.xls,.xlsx" />
-          <div class="btn-row"><button id="importBookBtn">匯入書籍清冊（覆蓋）</button><button id="exportBookBtn" class="secondary">匯出書籍清冊</button></div>
+          <div class="btn-row"><button id="importBookBtn">匯入書籍清冊（覆蓋）</button><button id="exportBookBtn" class="secondary">匯出書籍清冊（Excel）</button></div>
         </div>
       </section>
 
       <section class="panel">
         <h2>借閱紀錄</h2>
         <div class="panel-body">
-          <input id="loanImportInput" type="file" accept=".csv" />
+          <input id="loanImportInput" type="file" accept=".csv,.xls,.xlsx" />
           <div class="btn-row">
             <button id="importLoanBtn" class="danger">匯入借閱紀錄（覆蓋全部）</button>
-            <button id="exportLoanBtn" class="secondary">匯出借閱紀錄（時間戳）</button>
+            <button id="exportLoanBtn" class="secondary">匯出借閱紀錄（Excel）</button>
             <button id="exportGradeBtn" class="warn">分年級匯出借閱報表</button>
           </div>
           <p class="small">匯入借閱紀錄前會跳出覆蓋提醒，確認後才執行。</p>
@@ -611,6 +611,7 @@
 
     <div id="bottomModeNav" class="mode-nav bottom-nav front-only" data-front-display="flex">
       <a id="adminLinkFooter" class="nav-btn" href="./admin.html">前往後台管理</a>
+      <button id="statsBtn" type="button" class="nav-btn">借閱統計</button>
       <span id="modeBadgeFooter" class="mode-badge"></span>
     </div>
 
@@ -681,6 +682,7 @@
       topModeNav: document.getElementById("topModeNav"),
       adminLink: document.getElementById("adminLink"),
       adminLinkFooter: document.getElementById("adminLinkFooter"),
+      statsBtn: document.getElementById("statsBtn"),
       frontLink: document.getElementById("frontLink"),
       modeBadge: document.getElementById("modeBadge"),
       modeBadgeFooter: document.getElementById("modeBadgeFooter"),
@@ -885,11 +887,6 @@
         .replace(/^['’]+/, "");
     }
     function normalizeDigits(raw) { return normalizeCellText(raw).replace(/\s+/g, ""); }
-    function excelQuotedText(raw) {
-      const s = normalizeCellText(raw);
-      if (!s) return "";
-      return s.startsWith("'") ? s : "'" + s;
-    }
     function normalizeStudentId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(6, "0"); }
     function normalizeStaffId(raw) { const s = normalizeDigits(raw); if (!/^\d+$/.test(s)) return ""; return s.padStart(4, "0"); }
     function inferPersonType(uniqueId) { if (/^\d{6}$/.test(uniqueId)) return "Student"; if (/^\d{4}$/.test(uniqueId)) return "Staff"; return ""; }
@@ -1384,6 +1381,26 @@
       URL.revokeObjectURL(url);
     }
 
+    function downloadXLSX(filename, rows, sheetName = "Sheet1") {
+      if (typeof XLSX === "undefined") {
+        throw new Error("Excel 匯出模組尚未載入，請重新整理後再試。");
+      }
+      const normalizedRows = rows.map(r => (r || []).map(c => String(c ?? "")));
+      const ws = XLSX.utils.aoa_to_sheet(normalizedRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      const output = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
     function getHeaderIndex(header, aliases) {
       const normalized = header.map(h => String(h).trim());
       for (const name of aliases) {
@@ -1443,9 +1460,9 @@
       return -1;
     }
 
-    async function parseBookRowsFromFile(fileInput) {
+    async function parseRowsFromFile(fileInput, fileLabel = "檔案") {
       const file = fileInput.files && fileInput.files[0];
-      if (!file) throw new Error("請先選擇書籍清冊檔案。");
+      if (!file) throw new Error(`請先選擇${fileLabel}。`);
       const name = String(file.name || "").toLowerCase();
 
       if (name.endsWith(".xls") || name.endsWith(".xlsx")) {
@@ -1470,9 +1487,13 @@
       return parseCSV(text);
     }
 
+    async function parseBookRowsFromFile(fileInput) {
+      return parseRowsFromFile(fileInput, "書籍清冊檔案");
+    }
+
     async function readFileText(fileInput) {
       const file = fileInput.files && fileInput.files[0];
-      if (!file) throw new Error("請先選擇 CSV 檔案。");
+      if (!file) throw new Error("請先選擇檔案。");
       const bytes = await file.arrayBuffer();
       let text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
       if (text.includes("\uFFFD")) {
@@ -1825,8 +1846,7 @@
         return;
       }
 
-      const text = await readFileText(el.loanImportInput);
-      const rows = parseCSV(text);
+      const rows = await parseRowsFromFile(el.loanImportInput, "借閱紀錄檔案");
       if (!rows.length) throw new Error("借閱紀錄檔案沒有資料。");
 
       const baseHeader = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別"];
@@ -1835,7 +1855,7 @@
       const isOldHeader = actualHeader.length === baseHeader.length && baseHeader.every((v, i) => actualHeader[i] === v);
       const isNewHeader = actualHeader.length === headerWithUpdate.length && headerWithUpdate.every((v, i) => actualHeader[i] === v);
       if (!isOldHeader && !isNewHeader) {
-        throw new Error(`借閱紀錄 CSV格式不符合。標題欄必須為：${baseHeader.join(",")} 或 ${headerWithUpdate.join(",")}`);
+        throw new Error(`借閱紀錄格式不符合。標題欄必須為：${baseHeader.join(",")} 或 ${headerWithUpdate.join(",")}`);
       }
       const hasUpdatedAt = isNewHeader;
 
@@ -1931,16 +1951,16 @@
       const rows = await storeGetAll(STORE.books);
       rows.sort((a, b) => a.bookId.localeCompare(b.bookId));
       const header = ["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"];
-      downloadCSV(`書籍清冊_${ts()}.csv`, [header, ...rows.map(r => [excelQuotedText(r.bookId), r.title || "", r.author || "", excelQuotedText(r.isbn), r.binding || "", r.specialNo || "", r.callNo || "", r.location || "", r.categoryNo || "", r.shelfNo || ""]) ]);
-      message(`已匯出書籍清冊 ${rows.length} 筆。`);
+      downloadXLSX(`書籍清冊_${ts()}.xlsx`, [header, ...rows.map(r => [r.bookId || "", r.title || "", r.author || "", r.isbn || "", r.binding || "", r.specialNo || "", r.callNo || "", r.location || "", r.categoryNo || "", r.shelfNo || ""]) ], "書籍清冊");
+      message(`已匯出書籍清冊（Excel）${rows.length} 筆。`);
     }
 
     async function exportLoans() {
       const rows = await storeGetAll(STORE.loans);
       rows.sort((a, b) => (a.borrowAtISO === b.borrowAtISO ? (a.recordId || 0) - (b.recordId || 0) : a.borrowAtISO > b.borrowAtISO ? 1 : -1));
       const header = ["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別", "資料更新"];
-      downloadCSV(`借閱紀錄_${ts()}.csv`, [header, ...rows.map(r => [r.uniqueId || "", r.deptClass || "", r.jobSeat || "", r.name || "", r.bookTitle || "", r.isbn || "", r.bookId || "", r.borrowDateROC || "", r.dueDateROC || "", r.returnDateROC || "", r.personType === "Student" ? "學生" : "教職員", r.updatedAtISO || ""]) ]);
-      message(`已匯出借閱紀錄 ${rows.length} 筆。`);
+      downloadXLSX(`借閱紀錄_${ts()}.xlsx`, [header, ...rows.map(r => [r.uniqueId || "", r.deptClass || "", r.jobSeat || "", r.name || "", r.bookTitle || "", r.isbn || "", r.bookId || "", r.borrowDateROC || "", r.dueDateROC || "", r.returnDateROC || "", r.personType === "Student" ? "學生" : "教職員", r.updatedAtISO || ""]) ], "借閱紀錄");
+      message(`已匯出借閱紀錄（Excel）${rows.length} 筆。`);
     }
     function detectGrade(className) {
       const raw = String(className || "").trim();
@@ -2005,6 +2025,359 @@
       }
     }
 
+    function getLoanRocYear(loan) {
+      const rocText = String(loan.borrowDateROC || "").trim();
+      const rocMatch = rocText.match(/^(\d{2,4})[-\/]/);
+      if (rocMatch) return String(Number(rocMatch[1]));
+      const isoText = String(loan.borrowAtISO || "").trim();
+      if (!isoText) return "";
+      const d = new Date(isoText);
+      if (Number.isNaN(d.getTime())) return "";
+      return String(d.getFullYear() - 1911);
+    }
+
+    function buildGradeBucketsFromCountMap(countMap, profileMap) {
+      const grades = ["一", "二", "三", "四", "五", "六"];
+      const buckets = { "一": [], "二": [], "三": [], "四": [], "五": [], "六": [] };
+
+      for (const [uniqueId, count] of countMap.entries()) {
+        const p = profileMap.get(uniqueId) || {};
+        const className = p.className || "";
+        const name = p.name || "(無姓名)";
+        const grade = detectGrade(className);
+        if (!grade || !buckets[grade]) continue;
+        buckets[grade].push({ uniqueId, name, className, count });
+      }
+
+      for (const grade of grades) {
+        buckets[grade].sort((a, b) => {
+          if (a.count !== b.count) return b.count - a.count;
+          const classCmp = String(a.className || "").localeCompare(String(b.className || ""), "zh-Hant");
+          if (classCmp !== 0) return classCmp;
+          const nameCmp = String(a.name || "").localeCompare(String(b.name || ""), "zh-Hant");
+          if (nameCmp !== 0) return nameCmp;
+          return String(a.uniqueId || "").localeCompare(String(b.uniqueId || ""));
+        });
+        buckets[grade] = buckets[grade].slice(0, 15);
+      }
+
+      return buckets;
+    }
+
+    async function buildBorrowStatsPayload() {
+      const [loans, students] = await Promise.all([storeGetAll(STORE.loans), storeGetAll(STORE.students)]);
+      const profileMap = new Map();
+      const allCounts = new Map();
+      const yearCounts = new Map();
+
+      for (const s of students) {
+        if (!s || !s.id) continue;
+        profileMap.set(s.id, { name: s.name || "", className: s.className || "" });
+      }
+
+      for (const row of loans) {
+        if (!row || row.personType !== "Student") continue;
+        const sid = normalizeStudentId(row.uniqueId);
+        if (!/^\d{6}$/.test(sid)) continue;
+
+        if (!profileMap.has(sid)) {
+          profileMap.set(sid, { name: row.name || "", className: row.deptClass || "" });
+        }
+
+        allCounts.set(sid, (allCounts.get(sid) || 0) + 1);
+        const rocYear = getLoanRocYear(row);
+        if (!rocYear) continue;
+        if (!yearCounts.has(rocYear)) yearCounts.set(rocYear, new Map());
+        const yMap = yearCounts.get(rocYear);
+        yMap.set(sid, (yMap.get(sid) || 0) + 1);
+      }
+
+      const years = Array.from(yearCounts.keys())
+        .filter(y => /^\d+$/.test(y))
+        .sort((a, b) => Number(b) - Number(a));
+
+      const byYear = { "全部": buildGradeBucketsFromCountMap(allCounts, profileMap) };
+      for (const y of years) {
+        byYear[y] = buildGradeBucketsFromCountMap(yearCounts.get(y), profileMap);
+      }
+
+      return {
+        generatedAtISO: nowTimestampISO(),
+        years: ["全部", ...years],
+        byYear
+      };
+    }
+
+    function buildBorrowStatsPopupHtml(encodedPayload) {
+      return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>借閱統計</title>
+  <style>
+    body { margin: 0; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; background: #f4f7fd; color: #1f2d44; }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 14px 14px 96px; }
+    .head { background: #fff; border: 1px solid #d7dfef; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+    .head h1 { margin: 0 0 8px; font-size: 22px; color: #234275; }
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .controls label { font-weight: 700; color: #2d456f; }
+    .controls select { padding: 6px 9px; border: 1px solid #b8c6de; border-radius: 6px; }
+    .grade-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .grade-btn { border: none; border-radius: 7px; padding: 7px 12px; background: #556b8a; color: #fff; cursor: pointer; }
+    .grade-btn.active { background: #2f5faa; box-shadow: 0 0 0 3px rgba(47,95,170,0.2); }
+    .panel { background: #fff; border: 1px solid #d7dfef; border-radius: 10px; padding: 12px; margin-top: 10px; }
+    .chart-wrap { position: relative; width: 100%; height: 460px; }
+    #statsCanvas { width: 100%; height: 100%; display: block; }
+    .meta { margin-top: 8px; color: #5a6a84; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #e4eaf5; padding: 7px 8px; font-size: 13px; text-align: left; }
+    th { background: #2f5faa; color: #fff; position: sticky; top: 0; }
+    .table-wrap { max-height: 280px; overflow: auto; border: 1px solid #dbe3f1; border-radius: 8px; }
+    .export-btn { position: fixed; right: 18px; bottom: 18px; border: none; border-radius: 10px; background: #23683a; color: #fff; padding: 10px 16px; font-size: 14px; cursor: pointer; box-shadow: 0 6px 16px rgba(10,36,15,0.22); }
+    @media (max-width: 840px) { .chart-wrap { height: 400px; } .export-btn { right: 10px; bottom: 10px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <h1>學生借閱統計（各年級前 15 名）</h1>
+      <div class="controls">
+        <label for="yearSelect">年度篩選：</label>
+        <select id="yearSelect"></select>
+      </div>
+      <div id="gradeTabs" class="grade-tabs"></div>
+      <div id="meta" class="meta"></div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-wrap"><canvas id="statsCanvas"></canvas></div>
+      <div class="meta">縱軸：借閱量｜橫軸：姓名（年級班級）</div>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>排名</th><th>學號</th><th>姓名</th><th>班級</th><th>借閱量</th></tr></thead>
+          <tbody id="rankBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <button id="exportBtn" class="export-btn">匯出統計報表（六年級分頁）</button>
+
+  <script>
+    const payload = JSON.parse(decodeURIComponent("${encodedPayload}"));
+    const grades = ["一", "二", "三", "四", "五", "六"];
+    const currentRocYear = String(new Date().getFullYear() - 1911);
+    const yearOptions = payload.years && payload.years.length ? payload.years : ["全部"];
+    let activeYear = yearOptions.includes(currentRocYear) ? currentRocYear : (yearOptions.includes("全部") ? "全部" : yearOptions[0]);
+    let activeGrade = "一";
+
+    const yearSelect = document.getElementById("yearSelect");
+    const gradeTabs = document.getElementById("gradeTabs");
+    const rankBody = document.getElementById("rankBody");
+    const meta = document.getElementById("meta");
+    const canvas = document.getElementById("statsCanvas");
+    const ctx = canvas.getContext("2d");
+
+    function fillYears() {
+      yearSelect.innerHTML = "";
+      (payload.years || ["全部"]).forEach(y => {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y === "全部" ? "全部（當前所有紀錄）" : (y + " 年");
+        yearSelect.appendChild(opt);
+      });
+      yearSelect.value = activeYear;
+    }
+
+    function renderGradeTabs() {
+      gradeTabs.innerHTML = "";
+      grades.forEach(g => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "grade-btn" + (g === activeGrade ? " active" : "");
+        btn.textContent = g + "年級";
+        btn.addEventListener("click", () => {
+          activeGrade = g;
+          renderGradeTabs();
+          renderAll();
+        });
+        gradeTabs.appendChild(btn);
+      });
+    }
+
+    function getCurrentRows() {
+      const yearData = (payload.byYear && payload.byYear[activeYear]) || {};
+      return yearData[activeGrade] || [];
+    }
+
+    function drawChart(rows) {
+      const dpr = window.devicePixelRatio || 1;
+      const width = canvas.clientWidth || 900;
+      const height = canvas.clientHeight || 460;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      const m = { left: 62, right: 18, top: 20, bottom: 118 };
+      const plotW = width - m.left - m.right;
+      const plotH = height - m.top - m.bottom;
+      if (plotW <= 10 || plotH <= 10) return;
+
+      ctx.strokeStyle = "#9eb1d3";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(m.left, m.top);
+      ctx.lineTo(m.left, m.top + plotH);
+      ctx.lineTo(m.left + plotW, m.top + plotH);
+      ctx.stroke();
+
+      if (!rows.length) {
+        ctx.fillStyle = "#5b6a85";
+        ctx.font = "16px Microsoft JhengHei";
+        ctx.fillText("此條件下沒有統計資料。", m.left + 20, m.top + plotH / 2);
+        return;
+      }
+
+      const maxVal = Math.max(1, ...rows.map(r => Number(r.count) || 0));
+      const ticks = 5;
+      ctx.font = "12px Microsoft JhengHei";
+      for (let i = 0; i <= ticks; i++) {
+        const y = m.top + (plotH * i / ticks);
+        const v = Math.round(maxVal * (ticks - i) / ticks);
+        ctx.strokeStyle = "#e5ebf7";
+        ctx.beginPath();
+        ctx.moveTo(m.left, y);
+        ctx.lineTo(m.left + plotW, y);
+        ctx.stroke();
+        ctx.fillStyle = "#4c5c77";
+        ctx.fillText(String(v), 8, y + 4);
+      }
+
+      const step = plotW / rows.length;
+      const barW = Math.max(10, Math.min(36, step * 0.58));
+      rows.forEach((r, idx) => {
+        const val = Number(r.count) || 0;
+        const x = m.left + idx * step + (step - barW) / 2;
+        const h = maxVal > 0 ? (val / maxVal) * plotH : 0;
+        const y = m.top + plotH - h;
+
+        ctx.fillStyle = "#4d7fd2";
+        ctx.fillRect(x, y, barW, h);
+
+        ctx.fillStyle = "#253551";
+        ctx.font = "11px Microsoft JhengHei";
+        ctx.fillText(String(val), x + 2, Math.max(m.top + 12, y - 4));
+
+        const nameLabel = (r.name || "未命名");
+        const classLabel = (r.className || "未分班");
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#3a4b67";
+        ctx.font = "11px Microsoft JhengHei";
+        ctx.fillText(nameLabel, x + barW / 2, m.top + plotH + 8);
+        ctx.font = "10px Microsoft JhengHei";
+        ctx.fillText(classLabel, x + barW / 2, m.top + plotH + 24);
+        ctx.restore();
+      });
+
+      ctx.save();
+      ctx.translate(14, m.top + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = "#2f4366";
+      ctx.font = "12px Microsoft JhengHei";
+      ctx.fillText("借閱量", 0, 0);
+      ctx.restore();
+    }
+
+    function renderRanking(rows) {
+      if (!rows.length) {
+        rankBody.innerHTML = "<tr><td colspan='5'>此條件下沒有統計資料。</td></tr>";
+        return;
+      }
+      rankBody.innerHTML = rows.map((r, idx) => "<tr><td>" + (idx + 1) + "</td><td>" + (r.uniqueId || "") + "</td><td>" + (r.name || "") + "</td><td>" + (r.className || "") + "</td><td>" + (r.count || 0) + "</td></tr>").join("");
+    }
+
+    function renderAll() {
+      const rows = getCurrentRows();
+      const yearText = activeYear === "全部" ? "全部年度" : (activeYear + " 年");
+      meta.textContent = "年度：" + yearText + "｜年級：" + activeGrade + "年級｜統計時間：" + (new Date(payload.generatedAtISO || Date.now())).toLocaleString();
+      drawChart(rows);
+      renderRanking(rows);
+    }
+
+    function ts() {
+      const d = new Date();
+      const p = n => String(n).padStart(2, "0");
+      return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+    }
+
+    function exportReport() {
+      const XLSXRef = (window.opener && window.opener.XLSX) ? window.opener.XLSX : (window.XLSX || null);
+      if (!XLSXRef) {
+        alert("Excel 匯出模組未載入，請回主畫面重新開啟後再試。");
+        return;
+      }
+      const yearData = (payload.byYear && payload.byYear[activeYear]) || {};
+      const wb = XLSXRef.utils.book_new();
+      grades.forEach(g => {
+        const rows = yearData[g] || [];
+        const aoa = [["排名", "學號", "姓名", "班級", "借閱量"], ...rows.map((r, i) => [i + 1, r.uniqueId || "", r.name || "", r.className || "", r.count || 0])];
+        const ws = XLSXRef.utils.aoa_to_sheet(aoa);
+        XLSXRef.utils.book_append_sheet(wb, ws, g + "年級");
+      });
+
+      const out = XLSXRef.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const yearText = activeYear === "全部" ? "全部年度" : (activeYear + "年");
+      a.href = url;
+      a.download = "借閱統計_" + yearText + "_" + ts() + ".xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    yearSelect.addEventListener("change", () => {
+      activeYear = yearSelect.value;
+      renderAll();
+    });
+    document.getElementById("exportBtn").addEventListener("click", exportReport);
+    window.addEventListener("resize", () => renderAll());
+
+    fillYears();
+    renderGradeTabs();
+    renderAll();
+  <\/script>
+</body>
+</html>`;
+    }
+
+    async function openBorrowStatsWindow() {
+      const popup = window.open("", "borrow_stats_window", "width=1280,height=860,resizable=yes,scrollbars=yes");
+      if (!popup) {
+        alert("無法開啟借閱統計視窗，請允許彈出視窗後再試。");
+        return;
+      }
+
+      popup.document.open();
+      popup.document.write("<!doctype html><html><head><meta charset='UTF-8'><title>借閱統計</title></head><body style='font-family:Microsoft JhengHei;padding:16px;'>統計資料載入中...</body></html>");
+      popup.document.close();
+
+      const payload = await buildBorrowStatsPayload();
+      const encoded = encodeURIComponent(JSON.stringify(payload));
+      popup.document.open();
+      popup.document.write(buildBorrowStatsPopupHtml(encoded));
+      popup.document.close();
+    }
+
     function installTemplateButtons() {
       el.tplStudentBtn.addEventListener("click", () => {
         downloadCSV("學生名冊模板.csv", [["年班", "座號", "姓名", "學號"], ["一年1班", "1", "王小明", "114001"]]);
@@ -2015,12 +2388,12 @@
       });
 
       el.tplBookBtn.addEventListener("click", () => {
-        downloadCSV("書籍清冊模板.csv", [["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"], ["00000023", "HOW BIG IS BIG多大才是大(附CD)", "Harriet Ziefert", "9570339039", "01", "", "805.188/H297/c.2", "圖書館", "805.188", "BE06"]]);
+        downloadXLSX("書籍清冊模板.xlsx", [["登錄號", "書名", "著者名", "ISBN", "裝訂別", "特藏號", "索書號", "館藏地", "分類號", "排架號"], ["00000023", "HOW BIG IS BIG多大才是大(附CD)", "Harriet Ziefert", "9570339039", "01", "", "805.188/H297/c.2", "圖書館", "805.188", "BE06"]], "書籍清冊模板");
         message("請將全誼系統匯出之書庫資料以模板格式匯出，方能正確匯入。");
       });
 
       el.tplLoanBtn.addEventListener("click", () => {
-        downloadCSV("借閱紀錄模板.csv", [["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別", "資料更新"], ["114001", "一年1班", "1", "王小明", "HOW BIG IS BIG多大才是大(附CD)", "9570339039", "00000023", "115-03-09", "115-04-08", "", "學生", "2026-03-10T08:30:15.000Z"]]);
+        downloadXLSX("借閱紀錄模板.xlsx", [["唯一識別碼", "處室/班級", "職務/座號", "姓名", "書名", "ISBN", "登錄號", "借出時間", "應還時間", "還書時間", "身分別", "資料更新"], ["114001", "一年1班", "1", "王小明", "HOW BIG IS BIG多大才是大(附CD)", "9570339039", "00000023", "115-03-09", "115-04-08", "", "學生", "2026-03-10T08:30:15.000Z"]], "借閱紀錄模板");
       });
     }
 
@@ -2107,6 +2480,16 @@
       el.queryBookBtn.addEventListener("click", queryBook);
       el.borrowBtn.addEventListener("click", () => activateWorkflow("borrow"));
       el.returnBtn.addEventListener("click", () => activateWorkflow("return"));
+      if (el.statsBtn) {
+        el.statsBtn.addEventListener("click", async () => {
+          try {
+            await openBorrowStatsWindow();
+          } catch (e) {
+            alert(e.message || String(e));
+            message(e.message || String(e), true);
+          }
+        });
+      }
       el.quickExportLoanBtn.addEventListener("click", async () => { try { await exportLoans(); } catch (e) { message(e.message || String(e), true); } });
       el.catalogSearchByIdBtn.addEventListener("click", async () => { try { await searchCatalogById(); } catch (e) { message(e.message || String(e), true); } });
       el.catalogSearchByKeywordBtn.addEventListener("click", async () => { try { await searchCatalogByKeyword(); } catch (e) { message(e.message || String(e), true); } });
