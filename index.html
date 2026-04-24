@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
@@ -512,7 +512,7 @@
         <p><b>書籍清冊（建議 XLSX；相容 CSV/XLS）</b>：<span class="mono">登錄號,書名,著者名,ISBN,裝訂別,特藏號,索書號,館藏地,分類號,排架號</span>（可自動略過前置資訊列，抓取標題列）</p>
         <p>請將全誼系統匯出之書庫資料以模板格式匯出，方能正確匯入。</p>
         <p><b>借閱紀錄（建議 XLSX；相容 CSV/XLS）</b>：<span class="mono">唯一識別碼,處室/班級,職務/座號,姓名,書名,ISBN,登錄號,借出時間,應還時間,還書時間,身分別,資料更新</span>（舊檔無資料更新欄位也可匯入）</p>
-        <p>借閱規則：學生 5 本上限、教職員 10 本上限、借期 30 天，所有身分當日借不可當日還。</p>
+        <p>借閱規則可於後台設定：學生/教職員可分別設定借閱上限與借期天數；所有身分當日借不可當日還。</p>
         <div class="btn-row">
           <button id="tplStudentBtn" class="warn">下載學生模板</button>
           <button id="tplStaffBtn" class="warn">下載教職員模板</button>
@@ -577,6 +577,20 @@
           <div class="btn-row">
             <button id="importLegacyStaffLoanBtn">舊系統教職員借閱紀錄匯入（覆蓋教職員）</button>
           </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>借閱規則設定</h2>
+        <div class="panel-body">
+          <div class="row"><label for="ruleStudentMaxInput">學生上限（本）</label><input id="ruleStudentMaxInput" type="text" inputmode="numeric" /></div>
+          <div class="row"><label for="ruleStudentDaysInput">學生借期（天）</label><input id="ruleStudentDaysInput" type="text" inputmode="numeric" /></div>
+          <div class="row"><label for="ruleStaffMaxInput">教職員上限（本）</label><input id="ruleStaffMaxInput" type="text" inputmode="numeric" /></div>
+          <div class="row"><label for="ruleStaffDaysInput">教職員借期（天）</label><input id="ruleStaffDaysInput" type="text" inputmode="numeric" /></div>
+          <div class="btn-row">
+            <button id="saveRuleBtn" class="success">儲存借閱規則</button>
+          </div>
+          <p class="small">設定會儲存在本機瀏覽器；不會影響既有匯入/匯出檔案格式。</p>
         </div>
       </section>
 
@@ -652,7 +666,8 @@
     const DB_VERSION = 1;
 
     const STORE = { students: "students", staff: "staff", books: "books", loans: "loans" };
-    const RULE = { studentMaxBooks: 5, staffMaxBooks: 10, loanDays: 30 };
+    const RULE_DEFAULT = { studentMaxBooks: 5, staffMaxBooks: 10, studentLoanDays: 30, staffLoanDays: 90 };
+    const RULE_STORAGE_KEY = "library_rule_settings_v1";
     const isAdminMode = window.location.pathname.toLowerCase().endsWith("admin.html") || new URLSearchParams(window.location.search).get("mode") === "admin";
     const HISTORY_PAGE_SIZE = 50;
     const SCAN_DELAY_MS = 500;
@@ -672,6 +687,7 @@
     let activeFrontTab = "borrow";
     let historySortField = "updatedAtISO";
     let historySortDir = "desc";
+    let ruleSettings = { ...RULE_DEFAULT };
 
     const el = {
       todayRoc: document.getElementById("todayRoc"), userIdInput: document.getElementById("userIdInput"), bookIdInput: document.getElementById("bookIdInput"),
@@ -707,6 +723,11 @@
       legacyStaffLoanInput: document.getElementById("legacyStaffLoanInput"),
       importLegacyStudentLoanBtn: document.getElementById("importLegacyStudentLoanBtn"),
       importLegacyStaffLoanBtn: document.getElementById("importLegacyStaffLoanBtn"),
+      ruleStudentMaxInput: document.getElementById("ruleStudentMaxInput"),
+      ruleStudentDaysInput: document.getElementById("ruleStudentDaysInput"),
+      ruleStaffMaxInput: document.getElementById("ruleStaffMaxInput"),
+      ruleStaffDaysInput: document.getElementById("ruleStaffDaysInput"),
+      saveRuleBtn: document.getElementById("saveRuleBtn"),
       resetSystemBtn: document.getElementById("resetSystemBtn"),
       tplStudentBtn: document.getElementById("tplStudentBtn"), tplStaffBtn: document.getElementById("tplStaffBtn"), tplBookBtn: document.getElementById("tplBookBtn"), tplLoanBtn: document.getElementById("tplLoanBtn"),
       topModeNav: document.getElementById("topModeNav"),
@@ -935,6 +956,63 @@
       const y = Number(parts[0]); const m = Number(parts[1]); const d = Number(parts[2]);
       if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
       return new Date(y + 1911, m - 1, d);
+    }
+
+    function toPositiveInt(raw, fallback, min = 1, max = 3650) {
+      const n = Number.parseInt(String(raw ?? "").trim(), 10);
+      if (!Number.isFinite(n)) return fallback;
+      if (n < min) return min;
+      if (n > max) return max;
+      return n;
+    }
+
+    function loadRuleSettings() {
+      let stored = null;
+      try {
+        stored = JSON.parse(localStorage.getItem(RULE_STORAGE_KEY) || "null");
+      } catch (_) {
+        stored = null;
+      }
+      if (!stored || typeof stored !== "object") {
+        ruleSettings = { ...RULE_DEFAULT };
+        return;
+      }
+      ruleSettings = {
+        studentMaxBooks: toPositiveInt(stored.studentMaxBooks, RULE_DEFAULT.studentMaxBooks, 1, 99),
+        staffMaxBooks: toPositiveInt(stored.staffMaxBooks, RULE_DEFAULT.staffMaxBooks, 1, 99),
+        studentLoanDays: toPositiveInt(stored.studentLoanDays, RULE_DEFAULT.studentLoanDays, 1, 3650),
+        staffLoanDays: toPositiveInt(stored.staffLoanDays, RULE_DEFAULT.staffLoanDays, 1, 3650)
+      };
+    }
+
+    function syncRuleInputs() {
+      if (el.ruleStudentMaxInput) el.ruleStudentMaxInput.value = String(ruleSettings.studentMaxBooks);
+      if (el.ruleStaffMaxInput) el.ruleStaffMaxInput.value = String(ruleSettings.staffMaxBooks);
+      if (el.ruleStudentDaysInput) el.ruleStudentDaysInput.value = String(ruleSettings.studentLoanDays);
+      if (el.ruleStaffDaysInput) el.ruleStaffDaysInput.value = String(ruleSettings.staffLoanDays);
+    }
+
+    function getRuleByPersonType(personType) {
+      if (personType === "Staff") {
+        return { maxBooks: ruleSettings.staffMaxBooks, loanDays: ruleSettings.staffLoanDays };
+      }
+      return { maxBooks: ruleSettings.studentMaxBooks, loanDays: ruleSettings.studentLoanDays };
+    }
+
+    function saveRuleSettingsFromInputs() {
+      ruleSettings = {
+        studentMaxBooks: toPositiveInt(el.ruleStudentMaxInput ? el.ruleStudentMaxInput.value : "", ruleSettings.studentMaxBooks, 1, 99),
+        staffMaxBooks: toPositiveInt(el.ruleStaffMaxInput ? el.ruleStaffMaxInput.value : "", ruleSettings.staffMaxBooks, 1, 99),
+        studentLoanDays: toPositiveInt(el.ruleStudentDaysInput ? el.ruleStudentDaysInput.value : "", ruleSettings.studentLoanDays, 1, 3650),
+        staffLoanDays: toPositiveInt(el.ruleStaffDaysInput ? el.ruleStaffDaysInput.value : "", ruleSettings.staffLoanDays, 1, 3650)
+      };
+      syncRuleInputs();
+      try {
+        localStorage.setItem(RULE_STORAGE_KEY, JSON.stringify(ruleSettings));
+      } catch (_) {
+        // Ignore storage write failures.
+      }
+      message(`借閱規則已更新：學生 ${ruleSettings.studentMaxBooks} 本 / ${ruleSettings.studentLoanDays} 天；教職員 ${ruleSettings.staffMaxBooks} 本 / ${ruleSettings.staffLoanDays} 天。`);
     }
 
     function openDB() {
@@ -1345,7 +1423,8 @@
       if (activeLoan) throw new Error("借入失敗：此書目前已借出。");
 
       const activeByUser = await getActiveLoansByUser(uniqueId);
-      const limit = person.type === "Student" ? RULE.studentMaxBooks : RULE.staffMaxBooks;
+      const rule = getRuleByPersonType(person.type);
+      const limit = rule.maxBooks;
       if (activeByUser.length >= limit) {
         await refreshPersonBorrowList(uniqueId);
         throw new Error(`借入失敗：${person.name} 已達借閱上限 ${limit} 本。`);
@@ -1357,7 +1436,7 @@
       const isbn = book.isbn || "";
 
       const bDate = nowDate();
-      const due = addDays(bDate, RULE.loanDays);
+      const due = addDays(bDate, rule.loanDays);
       await storePut(STORE.loans, {
         uniqueId, personType: person.type, deptClass: person.deptClass || "", jobSeat: person.jobSeat || "", name: person.name || "",
         bookTitle, isbn, bookId,
@@ -1701,7 +1780,7 @@
         const key = `${sid}|${bookId}`;
 
         if (status === "借出" || status === "借入") {
-          const due = addDays(opDate, RULE.loanDays);
+          const due = addDays(opDate, getRuleByPersonType("Student").loanDays);
           const loan = {
             uniqueId: sid,
             personType: "Student",
@@ -1795,7 +1874,7 @@
         const isbnRaw = r[4] || "";
         const bookId = normalizeBookId(r[5]);
         const borrowDate = parseFlexibleDate(r[6]);
-        const dueDate = parseFlexibleDate(r[7]) || (borrowDate ? addDays(borrowDate, RULE.loanDays) : null);
+        const dueDate = parseFlexibleDate(r[7]) || (borrowDate ? addDays(borrowDate, getRuleByPersonType("Staff").loanDays) : null);
         const returnDate = parseFlexibleDate(r[8]);
 
         if (!bookId) { skippedNoBook++; continue; }
@@ -2612,6 +2691,16 @@
       el.exportGradeBtn.addEventListener("click", async () => { try { await exportGradeReports(); } catch (e) { message(e.message || String(e), true); } });
       el.importLegacyStudentLoanBtn.addEventListener("click", async () => { try { await importLegacyStudentLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
       el.importLegacyStaffLoanBtn.addEventListener("click", async () => { try { await importLegacyStaffLoans(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
+      if (el.saveRuleBtn) {
+        el.saveRuleBtn.addEventListener("click", () => {
+          try {
+            saveRuleSettingsFromInputs();
+          } catch (e) {
+            alert(e.message || String(e));
+            message(e.message || String(e), true);
+          }
+        });
+      }
       el.resetSystemBtn.addEventListener("click", async () => { try { await resetSystemData(); } catch (e) { alert(e.message || String(e)); message(e.message || String(e), true); } });
       if (el.historyFilterBtn) {
         el.historyFilterBtn.addEventListener("click", runHistoryFilterToggle);
@@ -2653,6 +2742,8 @@
     async function boot() {
       try {
         db = await openDB();
+        loadRuleSettings();
+        syncRuleInputs();
         if (isAdminMode) {
           activeAdminTab = "history";
           applyHistoryDefaultSortFromLastAction();
